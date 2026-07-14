@@ -1,0 +1,26 @@
+{
+  "name": "spatialpipelineengineering.org",
+  "version": "1.0.0",
+  "description": "Climate/Carbon Accounting Spatial Pipelines (MRV Automation) — a technical resource for building, automating, and validating satellite-driven carbon accounting and MRV systems.",
+  "type": "module",
+  "scripts": {
+    "build": "eleventy",
+    "serve": "eleventy --serve",
+    "clean": "rm -rf _site",
+    "preview": "eleventy && wrangler dev",
+    "deploy": "eleventy && wrangler deploy"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "devDependencies": {
+    "@11ty/eleventy": "^3.0.0",
+    "@11ty/eleventy-plugin-syntaxhighlight": "^5.0.0",
+    "markdown-it-anchor": "^9.2.0",
+    "markdown-it-task-lists": "^2.1.1",
+    "markdown-it-texmath": "^1.0.0"
+  },
+  "dependencies": {
+    "katex": "^0.16.11",
+    "mermaid": "^11.4.0"
+  }
+}

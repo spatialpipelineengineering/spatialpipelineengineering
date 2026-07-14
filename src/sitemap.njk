@@ -1,0 +1,21 @@
+---
+permalink: /sitemap.xml
+eleventyExcludeFromCollections: true
+---
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>{{ site.url }}/</loc>
+    <lastmod>2026-06-02</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  {%- for p in collections.content -%}
+  <url>
+    <loc>{{ site.url }}{{ p.url }}</loc>
+    <lastmod>{% if p.date %}{{ p.date | readableDate }}{% else %}2026-06-02{% endif %}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>{% if (p.url | depth) == 1 %}0.9{% elif (p.url | depth) == 2 %}0.7{% else %}0.6{% endif %}</priority>
+  </url>
+  {%- endfor -%}
+</urlset>

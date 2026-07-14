@@ -1,0 +1,95 @@
+---
+layout: base.njk
+---
+{%- set anc = page.url | ancestors -%}
+{%- set parentUrl = (anc | last) if (anc | length) else "/" -%}
+{%- set parentPage = collections.content | byUrl(parentUrl) -%}
+{%- set parentTitle = parentPage.data.title if parentPage else "All sections" -%}
+{%- set siblings = collections.content | childrenOf(parentUrl) -%}
+{%- set kids = collections.content | childrenOf(page.url) -%}
+{%- set d = page.url | depth -%}
+{%- set topSec = site.sections[page.url | topSlug] -%}
+
+<script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "{{ title | escape }}",
+    "description": "{{ description | escape }}",
+    "url": "{{ site.url }}{{ page.url }}",
+    "mainEntityOfPage": "{{ site.url }}{{ page.url }}",
+    "inLanguage": "{{ site.lang }}",
+    "articleSection": "{{ (topSec.label if topSec else parentTitle) | escape }}",
+    "image": "{{ site.url }}/assets/img/icon-512.png",
+    "author": { "@type": "Organization", "name": "{{ site.name }}", "url": "{{ site.url }}" },
+    "publisher": {
+      "@type": "Organization",
+      "name": "{{ site.name }}",
+      "logo": { "@type": "ImageObject", "url": "{{ site.url }}/assets/img/icon-512.png", "width": 512, "height": 512 }
+    },
+    "isPartOf": { "@type": "WebSite", "name": "{{ site.name }}", "url": "{{ site.url }}" }
+  }
+</script>
+
+<script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      { "@type": "ListItem", "position": 1, "name": "Home", "item": "{{ site.url }}/" }
+      {%- for u in anc -%}
+        {%- set p = collections.content | byUrl(u) -%}
+        ,{ "@type": "ListItem", "position": {{ loop.index + 1 }}, "name": "{{ (p.data.title if p else u) | escape }}", "item": "{{ site.url }}{{ u }}" }
+      {%- endfor -%}
+      ,{ "@type": "ListItem", "position": {{ (anc | length) + 2 }}, "name": "{{ title | escape }}", "item": "{{ site.url }}{{ page.url }}" }
+    ]
+  }
+</script>
+
+<div class="container page-shell">
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <ol>
+      <li><a href="{{ site.url }}/">Home</a></li>
+      {%- for u in anc -%}
+        {%- set p = collections.content | byUrl(u) -%}
+        <li><a href="{{ site.url }}{{ u }}">{{ p.data.title if p else u }}</a></li>
+      {%- endfor -%}
+      <li><span aria-current="page">{{ title }}</span></li>
+    </ol>
+  </nav>
+
+  <div class="article-layout">
+    <article class="prose">
+      {{ content | safe }}
+    </article>
+
+    <aside aria-label="Related content">
+      <div class="related">
+        {%- if d > 1 -%}
+          <a class="related__parent" href="{{ site.url }}{{ parentUrl }}">↑ {{ parentTitle }}</a>
+        {%- endif -%}
+        <h2>
+          {%- if d == 1 -%}All sections
+          {%- elif d == 2 -%}Related topics
+          {%- else -%}In this topic{%- endif -%}
+        </h2>
+        <ul>
+          {%- for s in siblings -%}
+            <li><a href="{{ site.url }}{{ s.url }}"{% if s.url == page.url %} aria-current="page"{% endif %}>{{ s.data.title }}</a></li>
+          {%- endfor -%}
+        </ul>
+      </div>
+
+      {%- if kids | length -%}
+        <div class="related">
+          <h2>{% if d == 1 %}Topics in this category{% else %}In-depth guides{% endif %}</h2>
+          <ul>
+            {%- for k in kids -%}
+              <li><a href="{{ site.url }}{{ k.url }}">{{ k.data.title }}</a></li>
+            {%- endfor -%}
+          </ul>
+        </div>
+      {%- endif -%}
+    </aside>
+  </div>
+</div>

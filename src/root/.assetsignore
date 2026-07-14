@@ -1,0 +1,3 @@
+# Files in _site that Wrangler should NOT upload as Worker assets.
+# Source maps are debug-only artifacts and are never needed at runtime.
+*.map

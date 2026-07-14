@@ -1,0 +1,10 @@
+# Cloudflare Worker (static assets only) for spatialpipelineengineering.org.
+# Serves the Eleventy `_site` build directly — no Worker script required.
+name = "spatialpipelineengineering"
+compatibility_date = "2025-05-01"
+
+[assets]
+directory = "./_site"
+# Directory-based URLs (/foo/ -> /foo/index.html); /foo redirects to /foo/.
+html_handling = "auto-trailing-slash"
+not_found_handling = "none"

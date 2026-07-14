@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Spatial Pipeline Engineering logo">
+  <defs>
+    <linearGradient id="m-bg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#11839e"/>
+      <stop offset="0.55" stop-color="#0f6e63"/>
+      <stop offset="1" stop-color="#0d5a47"/>
+    </linearGradient>
+    <linearGradient id="m-leaf" x1="24" y1="20" x2="44" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#eafaf0"/>
+      <stop offset="0.5" stop-color="#7fe0a8"/>
+      <stop offset="1" stop-color="#2bb673"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Full-bleed background for maskable safe zone -->
+  <rect x="0" y="0" width="64" height="64" fill="url(#m-bg)"/>
+
+  <!-- Emblem scaled ~70% and centered within the maskable safe zone -->
+  <g transform="translate(32 32) scale(0.66) translate(-32 -32)">
+    <ellipse cx="32" cy="32" rx="25" ry="14" fill="none" stroke="#bfe9ff" stroke-opacity="0.55"
+             stroke-width="1.6" transform="rotate(-32 32 32)"/>
+    <path d="M40 15 C24 18 17 31 18 47 C34 47 44 38 44 22 C44 19.4 42.4 16.6 40 15 Z"
+          fill="url(#m-leaf)"/>
+    <path d="M37 19 C30 26 24 35 21 45" fill="none" stroke="#0d5a47" stroke-opacity="0.55"
+          stroke-width="1.8" stroke-linecap="round"/>
+    <circle cx="35.5" cy="21.5" r="2.4" fill="#f3a712"/>
+    <circle cx="29" cy="30" r="2.4" fill="#f3a712"/>
+    <circle cx="22.6" cy="42.4" r="2.4" fill="#f3a712"/>
+    <g transform="rotate(-32 32 32)">
+      <g transform="translate(57 32)">
+        <rect x="-3" y="-3" width="6" height="6" rx="1.4" fill="#eaf6ff"/>
+        <rect x="-9" y="-2.2" width="4.4" height="4.4" rx="0.8" fill="#7fc8ff"/>
+        <rect x="4.6" y="-2.2" width="4.4" height="4.4" rx="0.8" fill="#7fc8ff"/>
+      </g>
+    </g>
+  </g>
+</svg>

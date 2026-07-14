@@ -1,0 +1,89 @@
+---
+layout: base.njk
+permalink: /
+---
+{% from "icons.njk" import icon %}
+{%- set categories = collections.content | childrenOf("/") -%}
+
+<section class="hero">
+  <div class="container">
+    <img class="hero__logo" src="/assets/img/logo.svg" width="168" height="168"
+         alt="{{ site.name }} logo: a leaf threaded by a data pipeline, orbited by a satellite" />
+    <h1>{{ site.title }}</h1>
+    <p class="hero__lead">
+      Build, automate, and validate satellite-driven carbon accounting and
+      <abbr title="Measurement, Reporting, Verification">MRV</abbr> systems —
+      from raw imagery to audit-ready emissions inventories.
+    </p>
+    <div class="hero__cta">
+      {%- for cat in categories -%}
+        {%- set slug = cat.url | topSlug -%}
+        {%- set meta = site.sections[slug] -%}
+        <a class="btn btn--ghost" href="{{ site.url }}{{ cat.url }}">
+          {{ icon(meta.icon if meta else "layers") }}
+          <span>{{ meta.label if meta else cat.data.title }}</span>
+          {{ icon("arrow-right") }}
+        </a>
+      {%- endfor -%}
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section__head">
+      <h2>A technical resource for spatial MRV automation</h2>
+    </div>
+    <div class="prose-intro">
+      <p>
+        Modern carbon accounting has moved from spreadsheets into distributed,
+        spatially explicit data pipelines. <strong>{{ site.name }}</strong> is a
+        practitioner-focused resource for engineering those pipelines: deterministic
+        geospatial processing, rigorous uncertainty quantification, and
+        cryptographically verifiable audit trails that meet institutional standards.
+      </p>
+      <p>
+        Written for ESG engineers, climate data scientists, and Python GIS teams, every
+        guide pairs production-ready code with the compliance context behind it — GHG
+        Protocol scoping, ISO 14064, CSRD, and the registry workflows that turn satellite
+        observations into defensible inventories.
+      </p>
+      <p>
+        The library is organized into four sections covering the full lifecycle:
+        designing MRV architecture, processing satellite imagery for emissions tracking,
+        modeling and validating carbon stocks, and orchestrating and governing the
+        pipelines that tie them together — schema contracts, workflow orchestration, and
+        registry standards. Pick a section below to dive in.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section__head">
+      <h2>Explore the content</h2>
+      <p>Four sections, each with focused topics and step-by-step Python implementation guides.</p>
+    </div>
+    <div class="card-grid">
+      {%- for cat in categories -%}
+        {%- set slug = cat.url | topSlug -%}
+        {%- set meta = site.sections[slug] -%}
+        {%- set topics = collections.content | childrenOf(cat.url) -%}
+        <article class="card card--rich">
+          <span class="card__icon">{{ icon(meta.icon if meta else "layers") }}</span>
+          <h3><a href="{{ site.url }}{{ cat.url }}">{{ meta.label if meta else cat.data.title }}</a></h3>
+          <p>{{ meta.blurb if meta else cat.data.description }}</p>
+          {%- if topics | length -%}
+            <ul class="topic-links">
+              {%- for t in topics -%}
+                <li><a href="{{ site.url }}{{ t.url }}">{{ icon("chevron-right") }}<span>{{ t.data.title }}</span></a></li>
+              {%- endfor -%}
+            </ul>
+          {%- endif -%}
+          <a class="card__more" href="{{ site.url }}{{ cat.url }}">Browse this section {{ icon("arrow-right") }}</a>
+        </article>
+      {%- endfor -%}
+    </div>
+  </div>
+</section>
