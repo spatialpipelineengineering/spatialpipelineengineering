@@ -261,6 +261,45 @@ def compute_validation_metrics(
 
 The bootstrap interval can be cross-checked against [IPCC 2006 Guidelines for National Greenhouse Gas Inventories](https://www.ipcc-nggip.iges.or.jp/public/2006gl/) Volume 4, Chapter 2, which sets the uncertainty-propagation expectations the metrics must satisfy.
 
+<svg viewBox="0 -4 880 216" role="img" aria-labelledby="reg-t2 reg-d2" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="reg-t2">Regression to the mean in a validation scatter, and why it is expected</title>
+  <desc id="reg-d2">A scatter of predicted against observed biomass with a one-to-one line. The point cloud is rotated relative to the one-to-one line: low observed values are over-predicted and high observed values are under-predicted, forming the characteristic fan. A fitted regression line is flatter than the one-to-one line. A panel explains that this is a property of any model with imperfect skill rather than a defect, that it means landscape totals are less biased than extremes, and that correcting it by rescaling predictions to match the observed variance improves the map's appearance and worsens its accuracy.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">The fan is expected, and rescaling it away makes things worse</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Predicted against observed, with the one-to-one line.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1.3">
+    <line x1="80" y1="52" x2="80" y2="180"/>
+    <line x1="80" y1="180" x2="440" y2="180"/>
+  </g>
+  <path d="M80 180 L440 56" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="6,4" opacity="0.7"/>
+  <text x="446" y="58" font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.7">1:1</text>
+  <line x1="80" y1="162" x2="440" y2="82" stroke="#f3a712" stroke-width="2.4"/>
+  <text x="446" y="84" font-family="system-ui, sans-serif" font-size="9" font-weight="700" fill="#f3a712">fitted</text>
+  <g fill="currentColor">
+    <circle cx="110" cy="158" r="3.6"/><circle cx="128" cy="150" r="3.6"/><circle cx="142" cy="163" r="3.6"/>
+    <circle cx="164" cy="146" r="3.6"/><circle cx="182" cy="152" r="3.6"/><circle cx="198" cy="138" r="3.6"/>
+    <circle cx="216" cy="144" r="3.6"/><circle cx="234" cy="128" r="3.6"/><circle cx="252" cy="136" r="3.6"/>
+    <circle cx="270" cy="120" r="3.6"/><circle cx="288" cy="130" r="3.6"/><circle cx="306" cy="112" r="3.6"/>
+    <circle cx="324" cy="104" r="3.6"/><circle cx="342" cy="116" r="3.6"/><circle cx="360" cy="96" r="3.6"/>
+    <circle cx="378" cy="106" r="3.6"/><circle cx="396" cy="88" r="3.6"/><circle cx="414" cy="98" r="3.6"/>
+  </g>
+  <g font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.75">
+    <text x="72" y="184" text-anchor="end">low</text>
+    <text x="72" y="60" text-anchor="end">high</text>
+    <text x="260" y="200" text-anchor="middle" font-weight="600">observed</text>
+    <text x="34" y="116" transform="rotate(-90 34 116)" text-anchor="middle" font-weight="600">predicted</text>
+  </g>
+  <g font-family="system-ui, sans-serif">
+    <rect x="516" y="60" width="352" height="112" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="516" y="60" width="352" height="112" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="532" y="84" fill="currentColor" font-size="10" font-weight="700">Not a defect — a property of imperfect skill</text>
+    <text x="532" y="108" fill="currentColor" font-size="9.5" opacity="0.85">Low values are over-predicted, high values under-predicted.</text>
+    <text x="532" y="128" fill="currentColor" font-size="9.5" opacity="0.85">Landscape totals are therefore less biased than extremes.</text>
+    <text x="532" y="152" fill="#f3a712" font-size="9.5" font-weight="700">Rescaling to match observed variance looks better and is worse.</text>
+  </g>
+</svg>
+
 ## Compliance Gating & Audit Trail Generation
 
 Validation metrics alone do not authorize credit issuance. The pipeline needs deterministic, versioned gates that halt tonnage generation when any threshold is breached and emit an immutable artifact a third party can re-run. The gate is the boundary between a number and a credit.
@@ -333,6 +372,69 @@ In production the stages run as a single orchestrated flow on a Prefect or Apach
 6. **Submit** — pass the artifact through `enforce_compliance_gating`; only a `passed` result authorizes tonnage and triggers registry submission, while a failure halts the run and routes the violation list to manual QA.
 
 Cache raster windows in `zarr` or cloud-optimized GeoTIFFs to eliminate redundant I/O across batched plots, and version-lock `rasterio`, `geopandas`, and `pyproj` so outputs stay deterministic across compute environments. For continuous monitoring, wrap `compute_validation_metrics` in a rolling window that tracks model drift across successive satellite acquisitions and feeds the trend back into [emission factor uncertainty mapping](https://www.spatialpipelineengineering.org/spatial-modeling-carbon-stock-validation/emission-factor-uncertainty-mapping/). Executed this way, the pipeline replaces subjective validation with code-enforced compliance — a defensible MRV workflow that scales from pilot plots to jurisdictional carbon accounting without compromising empirical rigor.
+
+<svg viewBox="0 -4 880 208" role="img" aria-labelledby="met-t met-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="met-t">Validation metrics and the question each one answers</title>
+  <desc id="met-d">Five validation metrics with their meaning. Root mean square error gives typical per-plot error in the units of the quantity and is the headline number. Mean error, or bias, shows whether the model is systematically high or low, and matters far more than root mean square error for a landscape total. R squared shows the share of variance explained and is misleading when the validation sample spans a wider range than the calibration set. The slope of observed on predicted shows regression to the mean and should be near one. Coverage of the stated prediction interval shows whether the uncertainty statement is true. A panel notes that bias and coverage are the two a verifier will focus on, and the two most often omitted in favour of root mean square error and R squared.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Two of these decide whether a total is defensible</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">And they are the two most often left out of a validation report.</text>
+    <rect x="12" y="52" width="856" height="30" rx="6" fill="currentColor" opacity="0.06"/>
+    <text x="28" y="72" fill="currentColor" font-size="10" font-weight="700">RMSE</text>
+    <text x="200" y="72" fill="currentColor" font-size="9.5" opacity="0.85">typical per-plot error, in the quantity's units — the headline, and about individual pixels</text>
+    <rect x="12" y="88" width="856" height="30" rx="6" fill="currentColor" opacity="0.14"/>
+    <text x="28" y="108" fill="currentColor" font-size="10" font-weight="700">Mean error (bias)</text>
+    <text x="200" y="108" fill="currentColor" font-size="9.5" font-weight="700">systematic high or low — this is what moves a landscape total</text>
+    <rect x="12" y="124" width="856" height="30" rx="6" fill="currentColor" opacity="0.06"/>
+    <text x="28" y="144" fill="currentColor" font-size="10" font-weight="700">R² and slope</text>
+    <text x="200" y="144" fill="currentColor" font-size="9.5" opacity="0.85">variance explained and regression to the mean — both range-dependent, both easy to flatter</text>
+    <rect x="12" y="160" width="856" height="30" rx="6" fill="currentColor" opacity="0.14"/>
+    <text x="28" y="180" fill="currentColor" font-size="10" font-weight="700">Interval coverage</text>
+    <text x="200" y="180" fill="#f3a712" font-size="9.5" font-weight="700">does the stated 90% interval actually contain 90% of observations?</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### Which validation metric matters most for a carbon claim?
+
+Bias, and it is rarely the headline. Root mean square error describes typical per-plot error, which matters for a pixel-level map and largely averages out across a landscape; a systematic bias does not average out at all and scales directly into the reported total. A model with a large RMSE and near-zero bias can support a defensible landscape figure, while one with a tidy RMSE and a 6% bias cannot.
+
+### Why is R² misleading here?
+
+Because it depends on the range of the validation sample as much as on the model. Validate on a set spanning the full biomass range and R² looks strong; validate within a narrow stratum and the same model scores poorly, having changed not at all. Report R² alongside the range it was computed over, and treat it as a development diagnostic rather than a claim.
+
+### What does interval coverage tell me that the other metrics do not?
+
+Whether the uncertainty statement is true. A model can have acceptable bias and RMSE while its stated 90% prediction interval contains only 70% of held-out observations — which means every downstream figure derived from that interval, including the conservativeness deduction, is wrong. Measuring coverage on held-out plots is cheap and it is the check that turns an uncertainty claim into a measurement.
+
+### Should validation plots be used to improve the model?
+
+No, or they stop being validation. The moment a held-out set influences a modelling choice — even indirectly, through repeated look-and-adjust cycles — its error estimate becomes optimistic. Keep a genuinely untouched set, enforce the separation in code rather than by convention, and if you must iterate, do it against a development split and reserve the validation set for a single final assessment.
+
+### How should validation results be presented to a verifier?
+
+As a table of metrics with the sample they were computed on, a predicted-against-observed scatter with the one-to-one line, and an explicit statement of the coverage achieved by the reported interval. Add the stratification, because aggregate metrics can hide a stratum where the model fails badly. What a verifier is assessing is whether the reported uncertainty is trustworthy, so lead with the evidence for that rather than with a headline accuracy figure.
+
+### How should plots be split between calibration and validation?
+
+Spatially, not randomly, and with the split fixed before any modelling begins. A random split leaves near-neighbour plots on both sides and produces the same optimism that random cross-validation does. Blocking the split geographically — or better, drawing the validation set as an independent probability sample — gives an error estimate that describes prediction at new locations rather than interpolation between known ones. Record the split as data so it survives a re-run.
+
+### What sample size does a validation need to detect a material bias?
+
+Fewer plots than most people expect for bias and more than most expect for interval coverage. Detecting a 5% bias against a per-plot error of 25% needs roughly a hundred plots at conventional power; assessing whether a 90% interval achieves 90% coverage to within a few points needs several hundred. If the campaign can only support one of the two, prioritise bias, because it scales directly into the reported total while coverage affects the deduction.
+
+### Should validation be repeated as the model is used over time?
+
+Yes, at a lower intensity than the initial assessment. A model validated once at year zero and applied for a decade accumulates drift as the landscape, the sensors, and the processing chain all change. A small annual check against whatever new field data exists — even a few dozen plots — detects a developing bias long before a full re-validation would, and it costs a fraction of the original campaign.
+
+### How should allometric uncertainty enter the validation?
+
+As part of the observation's error, not as a free pass. A field plot's biomass is itself a model output — stem measurements converted through an allometric equation — and that equation carries its own error, often 10–20% at the plot level. Treating the plot as exact makes the remote-sensing model look worse than it is and understates the joint uncertainty. Record the allometry used and its published error, and propagate it alongside the model's own.
+
+### Can plots from a national forest inventory be reused?
+
+Often yes, and it is usually the best value available — national inventories are probability samples with documented protocols, which is exactly what a design-based validation needs. The constraints are access to exact coordinates, which many programmes restrict, and the measurement date, which may sit years from your imagery. Where coordinates are only released fuzzed, the plots remain useful for landscape-level validation and are unusable for per-pixel calibration.
 
 ## Related
 

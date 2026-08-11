@@ -4,7 +4,7 @@ Satellite imagery processing for emissions tracking is the computational backbon
 
 The discipline is not "remote sensing with extra steps." It is a software engineering problem in which every transformation must propagate measurement uncertainty, preserve immutable lineage, and survive third-party audit. A production pipeline here ingests through orchestration patterns like [async satellite tile processing with Dask](https://www.spatialpipelineengineering.org/satellite-imagery-processing-for-emissions-tracking/async-satellite-tile-processing-with-dask/), cleans observations using [Sentinel-2 and Landsat cloud masking workflows](https://www.spatialpipelineengineering.org/satellite-imagery-processing-for-emissions-tracking/sentinel-2-landsat-cloud-masking-workflows/), and emits activity metrics that feed land-based accounting and [spatial modeling for carbon stock validation](https://www.spatialpipelineengineering.org/spatial-modeling-carbon-stock-validation/). The remainder of this guide walks the full path — architecture, spatial normalization, compliance mapping, lineage, and production validation — at the engineering depth auditors and verification bodies now demand.
 
-<svg viewBox="0 0 986 210" role="img" aria-labelledby="pipe-t pipe-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+<svg viewBox="4 32 978 179" role="img" aria-labelledby="pipe-t pipe-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
   <title id="pipe-t">Satellite imagery emissions-tracking pipeline</title>
   <desc id="pipe-d">A seven-stage linear pipeline: a STAC catalogue of Sentinel-2, Landsat and SAR feeds preprocessing (cloud masking and atmospheric correction), then equal-area CRS alignment and resampling, probabilistic change detection, temporal aggregation to reporting periods, emission-factor mapping by spatial join to IPCC tiers, and finally a compliance and uncertainty stage that emits a 95 percent confidence interval with cryptographic lineage into the certified zone.</desc>
   <defs>
@@ -178,6 +178,43 @@ The engineering pattern that makes these frameworks operable is policy-as-code. 
 
 Emission factor mapping is the join where activity metrics — hectares converted, biomass-loss proxies, methane plume concentrations — meet region-specific coefficients. This join must be deterministic and fully attributed: a versioned factor database, an explicit fallback hierarchy when a local factor is missing (national inventory → IPCC Tier 2 → IPCC Tier 1), and a recorded provenance string for every coefficient applied. The factor database itself is version-pinned per run, so that reprocessing a historical period uses the factors that were authoritative at the time, and a later factor revision triggers an auditable, intentional backfill rather than a silent change. Where outputs eventually flow into issued credits, the mapping must reconcile against [carbon credit registry data integration](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/carbon-credit-registry-data-integration/) to prevent double issuance and to tie claims back to a spatial baseline.
 
+<svg viewBox="0 -4 900 234" role="img" aria-labelledby="sat-t sat-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="sat-t">Sensor characteristics that decide what a carbon pipeline can observe</title>
+  <desc id="sat-d">Four sensor families compared on the properties that matter for MRV. Sentinel-2 optical offers 10 to 20 metre resolution, five-day revisit, and is blocked by cloud. Landsat 8 and 9 offer 30 metre resolution, eight-day combined revisit, a five-decade archive, and are blocked by cloud. Sentinel-1 radar offers 10 metre resolution, six to twelve day revisit, and sees through cloud but responds to structure and moisture rather than reflectance. Commercial very-high-resolution offers sub-metre resolution, tasked revisit, and is expensive enough to be used for validation rather than monitoring. A panel notes that the binding constraint in the tropics is cloud-free revisit rather than resolution, which is why radar fusion buys more than a sharper optical sensor.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Resolution is rarely the binding constraint</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Cloud-free revisit is, almost everywhere carbon projects are.</text>
+    <rect x="12" y="52" width="212" height="150" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="12" y="52" width="212" height="150" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="28" y="76" fill="currentColor" font-size="10.5" font-weight="700">Sentinel-2 optical</text>
+    <text x="28" y="100" fill="currentColor" font-size="9.5" opacity="0.85">10–20 m · 5-day revisit</text>
+    <text x="28" y="120" fill="currentColor" font-size="9.5" opacity="0.85">free, dense archive</text>
+    <text x="28" y="146" fill="#f3a712" font-size="9.5" font-weight="700">blocked by cloud</text>
+    <text x="28" y="174" fill="currentColor" font-size="9" opacity="0.75">the workhorse</text>
+    <rect x="236" y="52" width="212" height="150" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="236" y="52" width="212" height="150" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="252" y="76" fill="currentColor" font-size="10.5" font-weight="700">Landsat 8/9</text>
+    <text x="252" y="100" fill="currentColor" font-size="9.5" opacity="0.85">30 m · 8-day combined</text>
+    <text x="252" y="120" fill="currentColor" font-size="9.5" opacity="0.85">five-decade archive</text>
+    <text x="252" y="146" fill="#f3a712" font-size="9.5" font-weight="700">blocked by cloud</text>
+    <text x="252" y="174" fill="currentColor" font-size="9" opacity="0.75">the only long baseline</text>
+    <rect x="460" y="52" width="212" height="150" rx="9" fill="currentColor" opacity="0.12"/>
+    <rect x="460" y="52" width="212" height="150" rx="9" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <text x="476" y="76" fill="currentColor" font-size="10.5" font-weight="700">Sentinel-1 radar</text>
+    <text x="476" y="100" fill="currentColor" font-size="9.5" opacity="0.85">10 m · 6–12 day revisit</text>
+    <text x="476" y="120" fill="currentColor" font-size="9.5" font-weight="700">sees through cloud</text>
+    <text x="476" y="146" fill="currentColor" font-size="9.5" opacity="0.85">structure &amp; moisture, not colour</text>
+    <text x="476" y="174" fill="currentColor" font-size="9" opacity="0.75">what fusion buys you</text>
+    <rect x="684" y="52" width="204" height="150" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="684" y="52" width="204" height="150" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="700" y="76" fill="currentColor" font-size="10.5" font-weight="700">Commercial VHR</text>
+    <text x="700" y="100" fill="currentColor" font-size="9.5" opacity="0.85">sub-metre · tasked</text>
+    <text x="700" y="120" fill="currentColor" font-size="9.5" opacity="0.85">expensive per scene</text>
+    <text x="700" y="146" fill="currentColor" font-size="9.5" font-weight="700">validation, not monitoring</text>
+    <text x="700" y="174" fill="currentColor" font-size="9" opacity="0.75">use it to check, not to watch</text>
+  </g>
+</svg>
+
 ## Audit Trails, Lineage & Provenance
 
 Verification bodies do not accept a final tonnage; they require the ability to reconstruct exactly how it was produced. Satellite pipelines therefore generate provenance as a byproduct of every transformation, satisfying the same [MRV data lineage and provenance tracking](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/mrv-data-lineage-provenance-tracking/) contract that governs the rest of the stack. Concretely, each stage emits a signed artifact record containing: the cryptographic hash (SHA-256 or stronger) of every input, the content hash of the code and processing-graph version, the full set of configuration parameters and random seeds, the CRS and resampling decisions applied, and the hash of the produced output. These records form a directed lineage graph in which any certified figure can be traced back, edge by edge, to the specific COGs and factors that produced it.
@@ -193,6 +230,64 @@ Running this at scale is an operations problem as much as a science problem, and
 The orchestration layer (Airflow, Prefect, or Dagster) manages DAG dependencies, retry and timeout policy, and historical backfills. Backfill is a routine event here: a reprocessed satellite baseline, a corrected cloud-mask model, or a revised emission factor invalidates a date range, and the orchestrator replays exactly the affected tiles and periods, writing new certified outputs with new lineage rather than mutating the old ones. The downstream stages that consume these activity metrics — including [temporal aggregation for land-use change](https://www.spatialpipelineengineering.org/satellite-imagery-processing-for-emissions-tracking/temporal-aggregation-for-land-use-change/), which aligns detected change to reporting periods, and [deforestation alert generation pipelines](https://www.spatialpipelineengineering.org/satellite-imagery-processing-for-emissions-tracking/deforestation-alert-generation-pipelines/), which balance sensitivity against specificity to avoid over-reporting transient disturbance — are wired into the same orchestration graph so that a backfill propagates coherently end to end.
 
 Observability is engineered to surface *spatial* integrity, not just generic system health. Dashboards expose CRS-alignment scores, sub-pixel co-registration offsets, cloud-rejection rates per tile, edge-artifact frequency, classification drift against a stable reference, and cost-per-hectare. Structured telemetry (JSON logs with a `structlog`-style processor chain, plus OpenTelemetry traces) tags every record with tile ID, time window, and processing-graph hash, so a latency spike or a quality regression is attributable to a specific stage and input rather than a black box. Automated alerts fire when uncertainty bounds exceed a regulatory threshold, when a temporal gap would violate a required revisit frequency, or when co-registration tolerance is breached. Output serialization is standardized for downstream interoperability: certified results are written as cloud-native rasters and tabular Parquet, with regulatory submissions emitted in the formats the receiving body expects (ISO 14064-compliant JSON-LD, or XBRL for CSRD). The result is continuous, auditable emissions accounting that a regulator, investor, or verification body can interrogate at any point in its history.
+
+<svg viewBox="0 -4 716 240" role="img" aria-labelledby="cf-t cf-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="cf-t">Usable observations per year after cloud masking, by region</title>
+  <desc id="cf-d">A bar chart of clear Sentinel-2 observations per pixel per year after cloud and shadow masking, across four regions. A semi-arid basin retains 58 of 73 possible passes. A temperate forest retains 31. A humid tropical lowland retains 9. A persistently cloudy montane region retains 4. A threshold line at 24 observations marks the minimum for a harmonic seasonal fit. A panel notes that the two regions below the line cannot support per-pixel time-series methods on optical data alone, which determines the algorithm before any modelling choice is made.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">The region chooses the algorithm, not the analyst</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Clear Sentinel-2 observations per pixel per year after masking, out of 73 possible passes.</text>
+  </g>
+  <line x1="196" y1="52" x2="196" y2="188" stroke="currentColor" stroke-width="1.2" opacity="0.5"/>
+  <line x1="392" y1="46" x2="392" y2="194" stroke="#f3a712" stroke-width="1.8" stroke-dasharray="5,4"/>
+  <text x="398" y="44" font-family="system-ui, sans-serif" font-size="9" font-weight="700" fill="#f3a712">24 — harmonic fit minimum</text>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="72" fill="currentColor" font-size="10" font-weight="700">Semi-arid basin</text>
+    <rect x="196" y="58" width="474" height="20" rx="4" fill="currentColor" opacity="0.3"/>
+    <text x="682" y="73" fill="currentColor" font-size="9.5" font-weight="700">58</text>
+    <text x="12" y="110" fill="currentColor" font-size="10" font-weight="700">Temperate forest</text>
+    <rect x="196" y="96" width="253" height="20" rx="4" fill="currentColor" opacity="0.3"/>
+    <text x="461" y="111" fill="currentColor" font-size="9.5" font-weight="700">31</text>
+    <text x="12" y="148" fill="currentColor" font-size="10" font-weight="700">Humid tropical lowland</text>
+    <rect x="196" y="134" width="74" height="20" rx="4" fill="#f3a712" opacity="0.4"/>
+    <text x="282" y="149" fill="#f3a712" font-size="9.5" font-weight="700">9 — radar or nothing</text>
+    <text x="12" y="186" fill="currentColor" font-size="10" font-weight="700">Montane, persistent cloud</text>
+    <rect x="196" y="172" width="33" height="20" rx="4" fill="#f3a712" opacity="0.4"/>
+    <text x="241" y="187" fill="#f3a712" font-size="9.5" font-weight="700">4 — radar or nothing</text>
+    <text x="12" y="214" fill="currentColor" font-size="9.5" opacity="0.82">Below the line, per-pixel optical time-series methods cannot be fitted at all.</text>
+    <text x="12" y="230" fill="currentColor" font-size="9.5" opacity="0.82">The design decision is made by the sky, not by the model.</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### How do I decide between optical, radar, and fusion for a project?
+
+By counting usable observations, not by comparing sensor specifications. Compute the clear-observation rate for the project area from a few years of archive after applying your actual cloud mask, and compare it against the minimum the intended algorithm needs — roughly two dozen per year for a harmonic seasonal fit. Where optical clears the bar, use it. Where it does not, radar is not an enhancement, it is the only option, and fusion is how you keep the interpretability of optical while getting radar's availability.
+
+### Does higher spatial resolution improve carbon estimates?
+
+Less than expected, and it costs more than expected. Finer pixels reduce mixed-pixel error at boundaries, which matters for fragmented landscapes and barely at all for large contiguous parcels. What they do not improve is the fundamental relationship between reflectance and carbon, which is where most of the error lives. Commercial very-high-resolution imagery earns its cost as validation — checking a sample of what the free archive concluded — rather than as the monitoring baseline.
+
+### How should scene selection be recorded?
+
+As a stored, queryable list of the exact scene identifiers used per output, not as a query that could be re-run. Archives are reprocessed, scenes are withdrawn, and a query re-run in three years returns a different set — which makes an as-of replay impossible. Store the identifiers, their processing baselines, and their checksums with the output, in the manner the [MRV data schema reference](https://www.spatialpipelineengineering.org/pipeline-orchestration-compliance-reference/mrv-data-schema-reference/) prescribes.
+
+### What is the most common source of error in this section of the pipeline?
+
+Cloud and shadow masking, by a wide margin. A mask that is too aggressive discards good observations and biases composites toward whatever conditions survive; one that is too permissive leaks bright cloud and dark shadow into a time series and produces false change. Both failures are systematic rather than random, which means they do not average out with more data, and both are invisible unless the masked fraction is trended as a signal.
+
+### How much of this can be done on a provider's platform versus in your own pipeline?
+
+Prototyping and exploration are far faster on a hosted platform; the production path for a compliance-bearing figure generally should not depend on one. The reason is reproducibility rather than capability: a hosted algorithm's version, its underlying archive, and its availability are outside your control and outside your audit horizon. A workable arrangement uses hosted platforms for discovery and a pinned, self-hosted pipeline for anything that produces a reported number.
+
+### How should imagery costs be forecast for a growing programme?
+
+From usable-observation counts rather than scene counts, because the processing cost tracks what survives masking rather than what was downloaded. A cloudy region delivers fewer usable observations per scene and therefore fewer per unit of storage and transfer, which makes naive per-scene forecasting optimistic in exactly the places where the archive is largest. Model the cost per usable observation per tile-month and the forecast becomes stable across regions.
+
+### What is the most common architectural mistake in this layer?
+
+Treating the archive as a database. Imagery services are optimised for range reads over immutable objects, not for repeated ad-hoc queries, and a pipeline that re-queries the catalogue on every task pays latency it never needed to. Resolve the scene list once per run, store it as data, and let every task read from that resolved list — which also makes the run reproducible, because the list is now an input rather than a side effect.
 
 ## Conclusion
 

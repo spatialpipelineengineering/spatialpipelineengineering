@@ -261,6 +261,89 @@ Production fusion pipelines fail silently when geometric or statistical assumpti
 
 Per-pixel feature-importance scores exported alongside the AGB raster let auditors confirm that SAR saturation zones are not artificially inflating carbon credits and that LiDAR-dominant regions cross-check against independent canopy-closure metrics. This is the interface that the detailed [point-cloud-to-SAR fusion procedure](https://www.spatialpipelineengineering.org/spatial-modeling-carbon-stock-validation/biomass-estimation-from-lidar-sar-fusion/fusing-lidar-point-clouds-with-sar-for-biomass-estimation/) builds on when it documents the full feature-stack provenance for registry submission.
 
+<svg viewBox="0 -4 880 226" role="img" aria-labelledby="fus-t fus-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="fus-t">What LiDAR and SAR each contribute, and where each saturates</title>
+  <desc id="fus-d">Two sensor families compared across the biomass range from 0 to 500 tonnes per hectare. LiDAR measures canopy height directly and relates to biomass without saturating across the whole range, but is sparse in space and expensive to acquire. C-band SAR responds to canopy structure and moisture, is dense and free, and saturates above roughly 100 tonnes per hectare. L-band SAR saturates higher, around 150 to 200. A shaded region above 150 marks where SAR alone cannot discriminate. A panel states the fusion logic: LiDAR supplies unsaturated calibration at sparse locations, SAR supplies wall-to-wall coverage, and the model transfers the first onto the second — so the fusion is only as good as the coregistration between them.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Fusion transfers LiDAR's calibration onto SAR's coverage</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Sensor response against biomass. Note where each stops discriminating.</text>
+  </g>
+  <rect x="376" y="46" width="244" height="130" fill="#f3a712" opacity="0.12"/>
+  <text x="498" y="62" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" font-weight="700" fill="#f3a712">SAR cannot discriminate here</text>
+  <g stroke="currentColor" stroke-width="1.3">
+    <line x1="80" y1="46" x2="80" y2="176"/>
+    <line x1="80" y1="176" x2="620" y2="176"/>
+  </g>
+  <g font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.72">
+    <text x="72" y="60" text-anchor="end">high</text>
+    <text x="72" y="172" text-anchor="end">low</text>
+    <text x="80" y="194" text-anchor="middle">0</text>
+    <text x="188" y="194" text-anchor="middle">100</text>
+    <text x="296" y="194" text-anchor="middle">200</text>
+    <text x="512" y="194" text-anchor="middle">400</text>
+    <text x="350" y="212" text-anchor="middle" font-weight="600">biomass (t ha⁻¹)</text>
+  </g>
+  <polyline points="80,172 188,138 296,110 404,88 512,70 620,58" fill="none" stroke="currentColor" stroke-width="2.8"/>
+  <polyline points="80,172 134,132 188,108 242,98 296,94 404,92 512,91 620,91" fill="none" stroke="#f3a712" stroke-width="2.6" stroke-dasharray="7,4"/>
+  <g font-family="system-ui, sans-serif" font-size="9.5" font-weight="600">
+    <text x="632" y="62" fill="currentColor">LiDAR height</text>
+    <text x="632" y="95" fill="#f3a712">SAR backscatter</text>
+    <text x="632" y="110" fill="currentColor" font-size="8.5" opacity="0.72">L-band saturates later</text>
+  </g>
+  <g font-family="system-ui, sans-serif">
+    <text x="632" y="140" fill="currentColor" font-size="9" opacity="0.85">LiDAR: sparse, unsaturated.</text>
+    <text x="632" y="154" fill="currentColor" font-size="9" opacity="0.85">SAR: dense, saturated.</text>
+    <text x="632" y="172" fill="currentColor" font-size="9" font-weight="700">Coregistration is the</text>
+    <text x="632" y="186" fill="currentColor" font-size="9" font-weight="700">whole game.</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### Why fuse at all rather than using LiDAR alone?
+
+Cost and coverage. Spaceborne LiDAR samples along orbital tracks rather than mapping continuously, and airborne LiDAR is expensive enough that few projects can afford repeat wall-to-wall acquisition. SAR is free, dense, and repeats every few days, but it saturates well below the biomass levels that matter in mature forest. Fusion uses LiDAR where it exists to calibrate a relationship that SAR can then extend everywhere — which is why the coregistration between the two is the dominant error term rather than either sensor's own precision.
+
+### How much does coregistration error cost?
+
+More than most teams expect. A ten-metre misalignment between a LiDAR footprint and the SAR pixel it calibrates against pairs a height measurement with the wrong backscatter, and because forest structure varies at that scale the resulting model is biased rather than merely noisy. In heterogeneous or steep terrain a systematic offset of one pixel can move a fitted relationship enough to shift landscape-scale biomass estimates by several per cent, in a direction that persists across the whole map.
+
+### Does terrain affect SAR backscatter enough to matter?
+
+Substantially, and it must be corrected before fusion rather than absorbed into the model. Radiometric terrain correction removes the slope- and aspect-dependent component of backscatter that would otherwise be attributed to biomass, and without it a model calibrated on flat plots systematically misestimates on slopes — which is where a great deal of remaining forest is. Record the terrain-correction method and the elevation model used, since both change the result.
+
+### Which SAR band should be preferred?
+
+L-band where available, because it penetrates the canopy further and saturates at higher biomass than C-band. C-band is far more available and remains useful for detecting change and for lower-biomass systems. Many production pipelines use C-band for its cadence and L-band for its dynamic range, which means handling two very different acquisition schedules and two separate coregistration problems rather than one.
+
+### How should the fused model's uncertainty be reported?
+
+As a per-pixel interval derived from the fitted relationship's residual structure, not as a single landscape figure. Fusion error is spatially structured — larger on slopes, in heterogeneous stands, and near the saturation ceiling — so a single average understates it exactly where the estimate matters most. Propagate the interval into the aggregated total rather than aggregating point estimates and attaching an interval afterwards.
+
+### How often does the fused model need refitting?
+
+When the sensor, the terrain correction, or the calibration data changes — not on a schedule. A refit changes every historical estimate the model produced, so it is a restatement rather than a maintenance action, and it should be timed to a period boundary and disclosed. In between, monitor the residuals against any new LiDAR that arrives: a drifting residual is early warning that the relationship is degrading, and it is far better to detect that as a trend than as a step at the next refit.
+
+### Can optical data substitute for LiDAR in the calibration?
+
+Not for the structural measurement, though it helps elsewhere. Optical reflectance saturates at even lower biomass than C-band radar and carries no direct height information, so it cannot supply the unsaturated calibration that fusion depends on. Where it does earn its place is in stratification — separating forest types, detecting disturbance, and flagging areas where the structural relationship is likely to differ — which improves the fit indirectly by letting the model be fitted within more homogeneous strata.
+
+### What does a defensible fusion evidence package contain?
+
+The coregistration analysis with its residual field and applied correction, the terrain-correction method and elevation model, the calibration sample with its coverage of the biomass range, the fitted model form and coefficients, the validation against a held-out sample with per-stratum results, and the per-pixel uncertainty surface. That set answers the questions a verifier asks in the order they ask them, and each item is cheap to produce at the time and expensive to reconstruct afterwards.
+
+### How should the model handle areas with no LiDAR coverage at all?
+
+By predicting there and marking it, exactly as a digital soil mapping pipeline marks extrapolation. The fused relationship is fitted where LiDAR exists and applied where it does not, which is the whole point — but the further a prediction sits from the calibration's covariate space, the weaker it is. Compute a dissimilarity index against the calibration set, carry it as a band, and let the reporting stage decide whether to credit, widen the interval, or exclude.
+
+### Does seasonality affect the fused relationship?
+
+Substantially for radar and modestly for LiDAR. Backscatter responds to canopy and soil moisture, so the same forest returns different values in wet and dry conditions, and a model calibrated on dry-season acquisitions misestimates wet-season ones. Restrict acquisitions to a consistent seasonal window, or include a moisture proxy in the model and record it; what fails is mixing seasons silently and attributing the resulting scatter to model error.
+
+### What is the first thing to check when a fused map looks wrong?
+
+The coregistration residual field, before anything about the model. A map with plausible-looking values but poor validation almost always has a geometric cause, and the residual field says immediately whether the pairing was sound. Only once it is clean is it worth examining the model form, the calibration coverage, or the terrain correction.
+
 ## Conclusion
 
 By enforcing explicit CRS declaration, a rejecting co-registration gate, regime-aware sensor weighting, and per-pixel bootstrapped uncertainty, Biomass Estimation from LiDAR & SAR Fusion becomes a repeatable, compliance-grade component of carbon accounting infrastructure rather than an opaque model call. The stage bridges high-resolution structural sensing and wide-area radar coverage, delivering spatially explicit estimates that withstand third-party verification. For the operational detail behind each gate — temporal harmonization windows, fallback routing logic, and registry-ready provenance — continue to the in-depth guide on [fusing LiDAR point clouds with SAR for biomass estimation](https://www.spatialpipelineengineering.org/spatial-modeling-carbon-stock-validation/biomass-estimation-from-lidar-sar-fusion/fusing-lidar-point-clouds-with-sar-for-biomass-estimation/).

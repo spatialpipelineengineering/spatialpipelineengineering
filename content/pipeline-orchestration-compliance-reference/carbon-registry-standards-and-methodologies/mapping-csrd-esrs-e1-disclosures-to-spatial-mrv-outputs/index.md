@@ -177,6 +177,30 @@ def diagnose_backing_completeness(
 
 A datapoint that reports `fully_backed=False` never reaches the disclosure store. The orphan tonnage is surfaced with the offending record count so an engineer can repair the broken join or restore the missing lineage key before the figure is published, rather than an auditor discovering the gap during sampling.
 
+<svg viewBox="0 -4 900 226" role="img" aria-labelledby="e1-t e1-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="e1-t">Assurance level and what it demands of the underlying records</title>
+  <desc id="e1-d">Two columns comparing limited assurance and reasonable assurance. Limited assurance relies on analytical procedures and enquiry, samples at the aggregate level, and expresses a negative conclusion that nothing came to the auditor's attention. Reasonable assurance tests controls and substantiates at the record level, samples individual transactions, and expresses a positive opinion. A panel states the engineering consequence: under limited assurance an aggregate that cannot be decomposed may pass, while under reasonable assurance every aggregate must resolve to individually retrievable records with their lineage, which is a schema and retention requirement rather than a reporting one.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">The assurance level is an engineering requirement</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">It decides whether an aggregate must be decomposable to individual records.</text>
+    <rect x="12" y="52" width="424" height="128" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="12" y="52" width="424" height="128" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="28" y="76" fill="currentColor" font-size="10.5" font-weight="700">Limited assurance</text>
+    <text x="28" y="100" fill="currentColor" font-size="9.5" opacity="0.85">analytical procedures and enquiry</text>
+    <text x="28" y="120" fill="currentColor" font-size="9.5" opacity="0.85">samples at the aggregate level</text>
+    <text x="28" y="140" fill="currentColor" font-size="9.5" opacity="0.85">negative conclusion — “nothing came to our attention”</text>
+    <text x="28" y="166" fill="currentColor" font-size="9.5" font-weight="700">an opaque aggregate can survive</text>
+    <rect x="456" y="52" width="432" height="128" rx="9" fill="currentColor" opacity="0.12"/>
+    <rect x="456" y="52" width="432" height="128" rx="9" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <text x="472" y="76" fill="currentColor" font-size="10.5" font-weight="700">Reasonable assurance</text>
+    <text x="472" y="100" fill="currentColor" font-size="9.5" opacity="0.85">tests controls, substantiates at record level</text>
+    <text x="472" y="120" fill="currentColor" font-size="9.5" opacity="0.85">samples individual records</text>
+    <text x="472" y="140" fill="currentColor" font-size="9.5" opacity="0.85">positive opinion</text>
+    <text x="472" y="166" fill="#f3a712" font-size="9.5" font-weight="700">every aggregate must decompose to retrievable records</text>
+    <text x="12" y="210" fill="currentColor" font-size="9.5" opacity="0.85">That is a schema and retention requirement, decided years before the first disclosure — not a reporting-time concern.</text>
+  </g>
+</svg>
+
 ## Deterministic Transformation Logic
 
 With backing verified, the aggregation collapses per-record CO&#8322;e into ESRS E1 line items while propagating variance and emitting the evidence manifest in the same pass. Scope figures follow the GHG Protocol boundary definitions that E1-6 references, and removals are reported separately from credits so the E1-7 distinction between physically removed tonnes and purchased offsets is preserved. Uncertainty is combined in quadrature under an independence assumption where the schema records the contributions as independent, and additively where the source layer flags spatial correlation — the manifest records which was used so the rollup is reproducible.
@@ -325,6 +349,68 @@ Deploy the mapping as a fixed ingest &#8594; diagnose &#8594; transform &#8594; 
 6. **Submit.** Forward the assured figures and manifest to the CSRD reporting layer, tagging each with its reporting year and the assurance level targeted.
 
 By making backing completeness a gate, carrying uncertainty as a first-class rollup, and emitting an evidence manifest in the same pass as the aggregation, the mapping turns a spatial MRV surface into ESRS E1 figures that survive assurance. The disclosed number is never more than a query away from the pixels and parcels that produced it — which is exactly what a limited or reasonable assurance engagement is there to confirm.
+
+<svg viewBox="0 -4 880 232" role="img" aria-labelledby="dp-t dp-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="dp-t">A datapoint's backing chain, and the three places it commonly breaks</title>
+  <desc id="dp-d">A chain from a single ESRS E1 datapoint down to source observations. The datapoint resolves to a scope aggregate, which resolves to category subtotals, which resolve to individual activity records, which resolve to source observations with their lineage. Three break points are marked: a category subtotal computed from a spreadsheet rather than from the records, an activity record whose source observation was never retained, and a source observation whose lineage node is orphaned. A panel notes that each break makes the datapoint unsubstantiated at record level even though the arithmetic above it is correct, and that the arithmetic is never the problem.</desc>
+  <defs>
+    <marker id="dp-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+    </marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" text-anchor="middle">
+    <text x="440" y="16" fill="currentColor" font-size="11.5" font-weight="700">The arithmetic is never the problem</text>
+    <text x="440" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Every break below leaves a correct total that cannot be substantiated.</text>
+    <rect x="12" y="52" width="164" height="60" rx="8" fill="currentColor" opacity="0.12"/>
+    <rect x="12" y="52" width="164" height="60" rx="8" fill="none" stroke="currentColor" stroke-width="1.6"/>
+    <text x="94" y="76" fill="currentColor" font-size="10" font-weight="700">E1-6 datapoint</text>
+    <text x="94" y="96" fill="currentColor" font-size="9.5">412 830 tCO₂e</text>
+    <rect x="196" y="52" width="164" height="60" rx="8" fill="currentColor" opacity="0.07"/>
+    <rect x="196" y="52" width="164" height="60" rx="8" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="278" y="76" fill="currentColor" font-size="10" font-weight="700">Scope aggregate</text>
+    <text x="278" y="96" fill="currentColor" font-size="9.5">✓ resolves</text>
+    <rect x="380" y="52" width="164" height="60" rx="8" fill="none" stroke="#f3a712" stroke-width="1.9" stroke-dasharray="6,3"/>
+    <text x="462" y="76" fill="currentColor" font-size="10" font-weight="700">Category subtotal</text>
+    <text x="462" y="96" fill="#f3a712" font-size="9" font-weight="700">✗ from a spreadsheet</text>
+    <rect x="564" y="52" width="150" height="60" rx="8" fill="none" stroke="#f3a712" stroke-width="1.9" stroke-dasharray="6,3"/>
+    <text x="639" y="76" fill="currentColor" font-size="10" font-weight="700">Activity record</text>
+    <text x="639" y="96" fill="#f3a712" font-size="9" font-weight="700">✗ source not retained</text>
+    <rect x="734" y="52" width="134" height="60" rx="8" fill="none" stroke="#f3a712" stroke-width="1.9" stroke-dasharray="6,3"/>
+    <text x="801" y="76" fill="currentColor" font-size="10" font-weight="700">Observation</text>
+    <text x="801" y="96" fill="#f3a712" font-size="9" font-weight="700">✗ orphaned node</text>
+    <rect x="12" y="146" width="856" height="76" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="12" y="146" width="856" height="76" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="440" y="170" fill="currentColor" font-size="10" font-weight="700">Each break leaves the total correct and unsubstantiated.</text>
+    <text x="440" y="194" fill="currentColor" font-size="9.5" opacity="0.85">Assert decomposition as a gate: every published aggregate must resolve to retrievable records whose sum reproduces it,</text>
+    <text x="440" y="212" fill="currentColor" font-size="9.5" opacity="0.85">to a stated tolerance, with lineage on each. Run it before publication, not during the audit.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1.4" fill="none" marker-end="url(#dp-arrow)">
+    <line x1="176" y1="82" x2="194" y2="82"/><line x1="360" y1="82" x2="378" y2="82"/>
+    <line x1="544" y1="82" x2="562" y2="82"/><line x1="714" y1="82" x2="732" y2="82"/>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### What does reasonable assurance change for the pipeline?
+
+It moves substantiation from the aggregate to the record. Under limited assurance an auditor can accept an aggregate supported by analytical procedures; under reasonable assurance they will sample individual records and expect each to be retrievable with its lineage, its units, and its source observation. That is a retention and schema requirement decided years before the first disclosure, and retrofitting it means reconstructing records that were never kept.
+
+### How should spatial outputs be attached to an ESRS E1 datapoint?
+
+Through an explicit mapping table that names, for each datapoint, the source scope and flow, the aggregation rule, and the boundary. The mapping should be data rather than code, because datapoint definitions are revised and because a reader of the disclosure will eventually ask which pipeline outputs fed which line. Keeping the mapping alongside the figures also makes the decomposition gate implementable: the gate simply checks that each mapped datapoint resolves.
+
+### What tolerance is acceptable when an aggregate does not exactly equal the sum of its records?
+
+Small and stated — floating-point accumulation across millions of rows produces a residual, and pretending otherwise leads to a gate nobody can satisfy. Set the tolerance at a level explainable by arithmetic precision, typically a few parts per million of the aggregate, and treat anything above it as a hard failure rather than a rounding matter. A residual of half a percent is not rounding; it is a missing category.
+
+### How are restatements handled under CSRD?
+
+As a disclosed change with its cause and its effect on the comparative figures. Because spatial MRV restatements often arise from methodology or model changes rather than errors, the disclosure should distinguish the two — a revision that improves the estimate is a different narrative from a correction of a defect, and conflating them invites scepticism about both. Keep the previously published figure retrievable so the comparison can be made.
+
+### Does the double-materiality assessment affect what the pipeline must produce?
+
+Yes, indirectly but substantially. It determines which topics require quantitative disclosure, and therefore which spatial outputs must reach reasonable-assurance quality rather than being management information. A topic that moves into scope after a materiality reassessment brings its pipeline outputs with it, and those outputs then need the record-level substantiation and retention that were never applied when they were internal metrics.
 
 ## Related guides
 

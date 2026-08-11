@@ -257,6 +257,79 @@ Deploying carbon-stock pipelines at enterprise scale requires infrastructure pat
 
 For teams standardizing on open geospatial specifications, the [OGC API - Processes](https://www.ogc.org/standards/ogcapi-processes) and [STAC Specification](https://stacspec.org/) provide interoperable interfaces that decouple computation from storage while preserving strict metadata contracts, and the [PROJ coordinate transformation library](https://proj.org/) underpins every reprojection the pipeline performs.
 
+<svg viewBox="0 -4 900 226" role="img" aria-labelledby="pool-t pool-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="pool-t">Carbon pools, their share of a typical forest stock, and how each is measured</title>
+  <desc id="pool-d">Five carbon pools with their approximate share of total stock in a typical moist tropical forest and their measurement approach. Above-ground biomass holds roughly 44 percent and is measured by remote sensing calibrated against field plots. Below-ground biomass holds about 11 percent and is almost always derived from above-ground biomass by a root-to-shoot ratio rather than measured. Soil organic carbon holds about 34 percent and requires physical cores. Deadwood holds about 8 percent and needs field survey. Litter holds about 3 percent and is often excluded as immaterial. A panel notes that the pool with the largest share that is never directly observed is soil, and that the pool most projects report most confidently is above-ground biomass.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">The best-measured pool is not the largest one</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Approximate shares for a moist tropical forest, with how each is actually determined.</text>
+    <text x="12" y="72" fill="currentColor" font-size="10" font-weight="700">Above-ground biomass</text>
+    <text x="12" y="106" fill="currentColor" font-size="10" font-weight="700">Soil organic carbon</text>
+    <text x="12" y="140" fill="currentColor" font-size="10" font-weight="700">Below-ground biomass</text>
+    <text x="12" y="174" fill="currentColor" font-size="10" font-weight="700">Deadwood · litter</text>
+  </g>
+  <g>
+    <rect x="196" y="56" width="264" height="22" rx="4" fill="currentColor" opacity="0.3"/>
+    <text x="470" y="72" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">44% · remote sensing + field plots</text>
+    <rect x="196" y="90" width="204" height="22" rx="4" fill="#f3a712" opacity="0.4"/>
+    <text x="410" y="106" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">34% · physical cores only</text>
+    <rect x="196" y="124" width="66" height="22" rx="4" fill="currentColor" opacity="0.2"/>
+    <text x="272" y="140" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">11% · derived by root-to-shoot ratio, never measured</text>
+    <rect x="196" y="158" width="66" height="22" rx="4" fill="currentColor" opacity="0.14"/>
+    <text x="272" y="174" font-family="system-ui, sans-serif" font-size="9.5" fill="currentColor">11% · field survey, or excluded as immaterial</text>
+  </g>
+  <g font-family="system-ui, sans-serif">
+    <rect x="12" y="192" width="876" height="26" rx="7" fill="currentColor" opacity="0.06"/>
+    <text x="28" y="210" fill="currentColor" font-size="9.5" font-weight="700">A third of the stock is in soil, which no satellite sees — and a tenth is a ratio applied to a number that was itself modelled.</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### Why is above-ground biomass the pool everyone reports most confidently?
+
+Because it is the only one a satellite can see, not because it is the best constrained. Remote sensing gives dense, repeatable, wall-to-wall coverage of canopy structure, which makes above-ground biomass tractable at scale. Soil holds a comparable share of the stock and requires destructive sampling; below-ground biomass is almost universally derived from above-ground by a ratio rather than measured at all. Reporting confidence should follow the evidence, not the convenience of the observation.
+
+### How should uncertainty be combined across pools?
+
+By propagating each pool's distribution rather than adding point estimates, and by respecting the correlations between them. Below-ground biomass derived from above-ground by a fixed ratio is perfectly correlated with it, so their errors do not partially cancel the way independent errors would — treating them as independent understates the total interval substantially. Where correlations are unknown, the conservative assumption is full correlation for derived pools and independence only where the measurements are genuinely separate.
+
+### When can a pool be excluded as immaterial?
+
+When the methodology permits it and the exclusion is conservative — that is, when excluding it cannot overstate the reported reduction. Litter is commonly excluded on that basis. Deadwood is more delicate, since a disturbance transfers carbon from live biomass into deadwood, and excluding deadwood while counting the live loss overstates the emission. Every exclusion must be justified in that direction and recorded, because a reviewer will test it against exactly this asymmetry.
+
+### What makes a stock model defensible rather than merely accurate?
+
+Documented calibration data with its own provenance, honest validation against an independent sample, a stated uncertainty that propagates into the reported figure, and a version that can be re-executed years later. Accuracy on a test set is necessary and insufficient: a model with excellent statistics and no reproducible environment is a model a verifier cannot check, which for compliance purposes is indistinguishable from an unvalidated one.
+
+### How often should stock models be re-calibrated?
+
+When the evidence base changes materially — new field plots, a new sensor, a methodology revision — rather than on a fixed schedule. Re-calibration changes previously reported figures if it is applied retrospectively, so it is a restatement decision. The workable pattern is to keep the issuance-era model pinned and runnable, adopt an improved model going forward from a stated date, and report both figures for the transition period so the effect of the change is visible rather than embedded.
+
+### How should stock models handle areas outside their calibration range?
+
+By masking them and reporting the fraction, exactly as a digital soil mapping pipeline masks its extrapolated region. A model asked to predict biomass in a forest type absent from its calibration returns a confident number with no basis, and because such areas are usually the structurally unusual ones — very tall, very degraded, or unusual in composition — the error is not random. Carrying an in-range flag per pixel makes the limitation visible to every downstream consumer rather than only to the modeller.
+
+### What is the relationship between the stock model and the change estimate?
+
+Change is a difference of two stock estimates, so it inherits both of their errors and none of their cancellation unless the errors are correlated. Where the same model is applied at both dates, a large part of the systematic error does cancel, which is why change is often better constrained than either level — a genuinely useful property. Where the model changed between dates, that cancellation disappears entirely, which is the technical reason a pinned issuance-era model matters so much for monitoring.
+
+### Should stock be modelled per pixel or per stand?
+
+Per pixel for flexibility and per stand for accuracy, and most production pipelines do both. Pixel-level prediction lets any boundary be aggregated later; stand-level modelling exploits the fact that a management unit is internally more homogeneous than the landscape and usually produces a better relationship. The practical arrangement is to model per pixel, aggregate to stands for reporting, and validate at the stand level, since that is the scale at which field plots and management decisions actually live.
+
+### How should model versions be managed across a portfolio?
+
+As data attached to each project rather than as the current state of a repository. Projects issued under different model versions coexist for the whole of their crediting periods, so the platform must be able to execute several versions concurrently and to state which produced any given figure. Pin the model artefact, record its digest on every output, and keep the executable environment for each version alive for as long as any project depends on it.
+
+### What is the single highest-value validation investment?
+
+An independent probability sample, spent on coverage rather than volume. It is the only artefact that produces a model-independent error estimate, it is what methodologies increasingly require, and it is the thing that cannot be reconstructed later — a model can be refitted, a map recomputed, but a sample that was never drawn is simply gone. Design it before the modelling work rather than after, and target the covariate space the model is weakest in.
+
+### How much of this stack should be shared across projects?
+
+The models and the validation machinery should be shared; the calibration and the thresholds should not. A shared model form, a shared validation harness, and a shared uncertainty pipeline reduce the per-project work substantially, while shared calibration coefficients transfer a relationship fitted in one forest onto another where it may not hold. Share the code, fit the parameters locally, and record which is which on every output.
+
 ## Conclusion
 
 **Spatial Modeling & Carbon Stock Validation** is a production engineering discipline that demands deterministic architecture, explicit compliance mapping, and rigorous auditability. By treating carbon-stock pipelines as version-controlled, cloud-native DAGs with embedded spatial validation, uncertainty propagation, and hash-linked lineage, ESG engineering teams can deliver regulatory-grade carbon accounting that withstands third-party scrutiny. The deep technical work happens in the supporting topics this page coordinates — radar and LiDAR fusion for biomass, plot-to-pixel ground-truth alignment, spatially explicit emission-factor uncertainty, and dynamic baseline threshold tuning — each of which inherits the CRS, lineage, and validation contracts established here and in the foundational [MRV Architecture & Carbon Accounting Fundamentals](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/) stack. The convergence of open geospatial standards, distributed computing frameworks, and compliance-driven validation layers is what makes scalable, transparent, and defensible carbon markets possible.

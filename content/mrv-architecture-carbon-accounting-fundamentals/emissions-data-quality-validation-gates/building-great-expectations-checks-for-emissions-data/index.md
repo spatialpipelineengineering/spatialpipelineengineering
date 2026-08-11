@@ -62,7 +62,7 @@ The objective is not generic data hygiene; it is a deterministic, reproducible v
     <line x1="746" y1="73" x2="798" y2="73"/>
   </g>
   <g font-family="system-ui, sans-serif" text-anchor="middle" font-size="10" font-weight="600">
-    <text x="556" y="62" fill="#f3a712">pass</text>
+    <text x="546" y="62" fill="#f3a712">pass</text>
     <text x="556" y="216" fill="currentColor" opacity="0.8">fail</text>
   </g>
 </svg>
@@ -296,6 +296,44 @@ def _mass_balance_ok(gdf: gpd.GeoDataFrame, tol: float = 1e-3) -> dict:
 
 The mass-balance check is the one expectation that no per-column rule can replace: it asserts that the reported `co2e_tonnes` reconciles with the product of `activity_quantity` and `emission_factor` across the batch, catching a row that is individually plausible but collectively inconsistent — the signature of a partial recompute or a stale factor join.
 
+<svg viewBox="0 -4 880 234" role="img" aria-labelledby="exp-t exp-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="exp-t">Expectation strictness against false-failure rate, and where the useful band sits</title>
+  <desc id="exp-d">A chart of false-failure rate against expectation strictness. At loose settings, such as a value range spanning ten orders of magnitude, the false-failure rate is near zero but so is the detection of real defects. At the useful band, where ranges are derived from the physical plausibility of the quantity, the false-failure rate stays under two percent while catching unit errors and magnitude mistakes. At tight settings, where ranges are fitted to last period's observed distribution, the false-failure rate climbs above thirty percent as legitimate growth and seasonal variation trip the check. A panel warns that fitting expectations to observed data guarantees they will fail whenever the business changes, which is exactly when scrutiny is highest.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Derive expectations from physics, not from last period's data</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">False-failure rate against how tightly an expectation is drawn.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1" opacity="0.22">
+    <line x1="80" y1="66" x2="600" y2="66"/><line x1="80" y1="112" x2="600" y2="112"/><line x1="80" y1="158" x2="600" y2="158"/>
+  </g>
+  <rect x="228" y="56" width="150" height="146" fill="currentColor" opacity="0.08"/>
+  <text x="303" y="72" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">useful band</text>
+  <g stroke="currentColor" stroke-width="1.3">
+    <line x1="80" y1="56" x2="80" y2="202"/>
+    <line x1="80" y1="202" x2="600" y2="202"/>
+  </g>
+  <g font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.72">
+    <text x="72" y="70" text-anchor="end">40%</text>
+    <text x="72" y="116" text-anchor="end">25%</text>
+    <text x="72" y="162" text-anchor="end">10%</text>
+    <text x="72" y="206" text-anchor="end">0</text>
+    <text x="120" y="222" text-anchor="middle">loose</text>
+    <text x="303" y="222" text-anchor="middle">physical plausibility</text>
+    <text x="560" y="222" text-anchor="middle">fitted to last period</text>
+  </g>
+  <polyline points="80,200 160,199 240,196 303,193 380,182 460,140 520,100 600,62" fill="none" stroke="#f3a712" stroke-width="2.8"/>
+  <g font-family="system-ui, sans-serif" font-size="9.5">
+    <text x="96" y="186" fill="currentColor" opacity="0.8">catches nothing</text>
+    <text x="612" y="66" fill="#f3a712" font-weight="700">trips on growth</text>
+    <rect x="628" y="96" width="240" height="90" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="628" y="96" width="240" height="90" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="644" y="120" fill="currentColor" font-size="10" font-weight="700">Fitted expectations fail</text>
+    <text x="644" y="142" fill="currentColor" font-size="9.5" opacity="0.85">whenever the business changes —</text>
+    <text x="644" y="158" fill="currentColor" font-size="9.5" opacity="0.85">a new site, a merger, a good year —</text>
+    <text x="644" y="176" fill="currentColor" font-size="9.5" font-weight="700">which is when scrutiny is highest.</text>
+  </g>
+</svg>
+
 ## Compliance Gating & Audit Trail Generation
 
 The gate is where a validation result becomes a compliance artifact. A passing batch is written to the ledger with a `lineage_id`; a failing batch is diverted to quarantine, Data Docs is rendered so a reviewer sees exactly which expectation failed on which rows, and the same `audit.json` is emitted either way. That artifact is deliberately machine-readable: `evaluated_expectations`, `unsuccessful_expectations`, the geometry result, and the mass-balance reconciliation together let a third-party verifier recompute the decision without re-running the pipeline.
@@ -325,6 +363,59 @@ Deploy the gate inside an orchestrated flow, following a fixed ingest → diagno
 6. **Submit.** Forward certified batches and their audit artifacts to registry submission, and register the lineage so the record is queryable downstream.
 
 Schedule the gate as a first-class task in the orchestration layer covered by [orchestrating MRV data pipelines](https://www.spatialpipelineengineering.org/pipeline-orchestration-compliance-reference/orchestrating-mrv-data-pipelines/), and treat a rising `unsuccessful_expectations` count as a monitored signal on every run, including the ones that pass, so an upstream export that is slowly degrading surfaces as a trend long before it breaches the gate. By pinning the suite to the canonical schema, enforcing geometry and mass-balance alongside the tabular rules, and emitting a signed audit artifact on both branches, a Great Expectations gate turns raw emissions batches into verifiable activity data that survives third-party scrutiny.
+
+<svg viewBox="0 -4 880 218" role="img" aria-labelledby="suite-t suite-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="suite-t">Where each expectation class belongs in the pipeline</title>
+  <desc id="suite-d">Three columns showing which expectation classes attach at which pipeline point. At ingestion, column presence, type, non-nullability, unit vocabulary, and coordinate reference system presence are checked, all blocking. After transformation, value ranges, categorical set membership, geometry validity, and cross-column consistency are checked, mostly blocking. After aggregation, row-count reconciliation against the expected partition set, sum consistency between disaggregated rows and the rolled-up total, and period-over-period magnitude are checked, with the first two blocking and the third advisory. A note states that a suite attached only at ingestion tests the source and never the pipeline.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">A suite that runs only at ingestion tests the source, never the pipeline</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Attach expectations at all three points; most defects are introduced between them.</text>
+    <rect x="12" y="52" width="280" height="126" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="12" y="52" width="280" height="126" rx="9" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <text x="28" y="76" fill="currentColor" font-size="10.5" font-weight="700">At ingestion</text>
+    <text x="28" y="98" fill="currentColor" font-size="9.5" opacity="0.85">column presence · type · non-null</text>
+    <text x="28" y="116" fill="currentColor" font-size="9.5" opacity="0.85">unit vocabulary</text>
+    <text x="28" y="134" fill="currentColor" font-size="9.5" opacity="0.85">CRS present</text>
+    <text x="28" y="160" fill="currentColor" font-size="9.5" font-weight="700">all blocking</text>
+    <rect x="300" y="52" width="280" height="126" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="300" y="52" width="280" height="126" rx="9" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <text x="316" y="76" fill="currentColor" font-size="10.5" font-weight="700">After transformation</text>
+    <text x="316" y="98" fill="currentColor" font-size="9.5" opacity="0.85">value ranges · category sets</text>
+    <text x="316" y="116" fill="currentColor" font-size="9.5" opacity="0.85">geometry validity</text>
+    <text x="316" y="134" fill="currentColor" font-size="9.5" opacity="0.85">cross-column consistency</text>
+    <text x="316" y="160" fill="currentColor" font-size="9.5" font-weight="700">mostly blocking</text>
+    <rect x="588" y="52" width="280" height="126" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="588" y="52" width="280" height="126" rx="9" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <text x="604" y="76" fill="currentColor" font-size="10.5" font-weight="700">After aggregation</text>
+    <text x="604" y="98" fill="currentColor" font-size="9.5" opacity="0.85">partition-set completeness</text>
+    <text x="604" y="116" fill="currentColor" font-size="9.5" opacity="0.85">parts sum to the total</text>
+    <text x="604" y="134" fill="currentColor" font-size="9.5" opacity="0.85">period-over-period magnitude</text>
+    <text x="604" y="160" fill="currentColor" font-size="9.5" font-weight="700">first two blocking, third advisory</text>
+    <text x="12" y="204" fill="#f3a712" font-size="9.5" font-weight="700">The defects that matter most — a bad reprojection, a wrong factor, a partial write — are all introduced after ingestion.</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### Where should expectation thresholds come from?
+
+From the physical plausibility of the quantity, not from a fitted distribution over last period's data. An emission intensity has bounds set by chemistry and process engineering; a parcel area has bounds set by the project; a coordinate has bounds set by the area of interest. Those bounds hold across a merger, a growth year, and a new site. Bounds fitted to observed data fail precisely when the business changes, which is when the figure is under the most scrutiny and the check is least helpful.
+
+### Should the suite fail the run or record the failure?
+
+Both, differently by class. Blocking expectations should raise and stop promotion, because the record cannot be interpreted. Advisory expectations should record and continue, with the flag carried on the record so downstream consumers and reviewers can see it. What must never happen is a failure that is recorded somewhere nobody reads while the record proceeds as if clean — that is the shape of every "we had the data all along" incident.
+
+### How do I keep the suite from drifting away from the schema?
+
+Generate the structural expectations from the canonical schema rather than writing them twice. Column presence, types, nullability, and unit vocabularies are all schema facts, and hand-maintaining them in a second place guarantees they will diverge. Keep hand-authored expectations for the semantic checks that a schema cannot express — cross-column consistency, plausibility ranges, geometry validity — and derive the rest.
+
+### What should a validation report contain for a verifier?
+
+The suite version, the per-expectation results with observed values for failures, the blocking classification of each expectation, and the disposition of every failure. Observed values matter: "expect_column_values_to_be_between failed" is not evidence, while "27 rows had intensity above 4.2 tCO₂e per MWh, maximum observed 118.4, all from source SITE-14" tells a reviewer what happened and lets them act.
+
+### Does running expectations on every row scale?
+
+For tabular emissions data, yes — these are vectorised column operations and the cost is small next to reading the data. The expensive checks are geometric: validity, self-intersection, and topology tests over large vector layers. Where those dominate, run them on the full set at stage boundaries and on a sampled subset within a stage, and record the sampling rate so the coverage of the claim is visible rather than implied.
 
 ## Related guides
 

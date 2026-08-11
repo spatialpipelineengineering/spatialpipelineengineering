@@ -53,8 +53,47 @@ permalink: /
         designing MRV architecture, processing satellite imagery for emissions tracking,
         modeling and validating carbon stocks, and orchestrating and governing the
         pipelines that tie them together — schema contracts, workflow orchestration, and
-        registry standards. Pick a section below to dive in.
+        registry standards. {{ collections.content | length }} pages in total, each with
+        production Python, the compliance mapping behind it, and hand-drawn diagrams of
+        the mechanisms that actually break. Pick a section below to dive in.
       </p>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section__head">
+      <h2>Start here</h2>
+      <p>Four questions practitioners arrive with, and the page that answers each.</p>
+    </div>
+    <div class="card-grid">
+      {%- set starters = [
+        { icon: "blueprint",
+          title: "Which projection should my pipeline compute in?",
+          blurb: "Measured areal distortion for EASE-Grid 2.0, Mollweide, Albers and UTM, why Web Mercator is disqualifying for carbon work, and how to document the choice.",
+          url: "/mrv-architecture-carbon-accounting-fundamentals/geospatial-coordinate-reference-systems-crs-alignment/choosing-an-equal-area-projection-for-carbon-accounting/" },
+        { icon: "workflow",
+          title: "Why is my figure wrong when nothing failed?",
+          blurb: "Twelve silent failure modes that corrupt carbon numbers without failing a task — datum fallbacks, partial writes, categorical resampling — each with a diagnostic and the invariant that catches it.",
+          url: "/pipeline-orchestration-compliance-reference/mrv-pipeline-observability-and-failure-modes/failure-mode-catalog-for-spatial-mrv-pipelines/" },
+        { icon: "satellite",
+          title: "How do I turn a methane plume into a defensible number?",
+          blurb: "Integrated mass enhancement and cross-sectional flux implemented end to end, with the uncertainty budget that shows why wind data beats sharper imagery.",
+          url: "/satellite-imagery-processing-for-emissions-tracking/methane-plume-detection-from-hyperspectral-imagery/quantifying-methane-plume-emission-rates-in-python/" },
+        { icon: "forest",
+          title: "What happens after the credits are sold?",
+          blurb: "Reversal detection, leakage against matched controls, and the pinned issuance-era model that stops a software upgrade being reported as a forest loss.",
+          url: "/spatial-modeling-carbon-stock-validation/permanence-reversal-and-leakage-monitoring/" }
+      ] -%}
+      {%- for s in starters -%}
+        <article class="card">
+          <span class="card__icon">{{ icon(s.icon) }}</span>
+          <h3><a href="{{ site.url }}{{ s.url }}">{{ s.title }}</a></h3>
+          <p>{{ s.blurb }}</p>
+          <span class="card__more">Read the guide {{ icon("arrow-right") }}</span>
+        </article>
+      {%- endfor -%}
     </div>
   </div>
 </section>

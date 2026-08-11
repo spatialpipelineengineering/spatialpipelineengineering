@@ -79,6 +79,48 @@ Three failure modes account for the majority of reporting errors that validation
 
 3. **Geometry validity failures corrupting area-based activity.** The root cause is malformed spatial input — self-intersecting polygons from a bad digitisation, empty or null geometries from a failed spatial operation, or ring-orientation errors from a lossy format conversion. When activity data is derived from area (land-use change, afforested hectares, footprint of a facility), an invalid geometry produces a wrong area: a self-intersection can make `shapely` compute a negative or near-zero area for a bow-tie polygon, and an empty geometry contributes zero where hundreds of hectares should be counted. The impact is localised but severe for the affected parcel — a self-intersecting boundary can misstate its area by 100% or flip its sign — and because it is a geometry error rather than a value error, no range check on the numeric column will ever catch it. The gate defence is an explicit `geometry.is_valid` expectation combined with a non-empty and area-positivity check, run before any area is derived.
 
+<svg viewBox="0 -4 900 232" role="img" aria-labelledby="gate-t gate-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="gate-t">Blocking gates against advisory checks, and what each does to a failing record</title>
+  <desc id="gate-d">Two rows of checks. The blocking row contains schema conformance, unit declaration, coordinate reference system presence, and mass-balance reconciliation; a record failing any of these is quarantined and never reaches the certified zone. The advisory row contains outlier magnitude, year-on-year change, and completeness against the expected reporting set; a record failing these is flagged, still promoted, and routed to review. A panel explains that the split exists because every advisory check promoted to blocking eventually stops a legitimate record, and every blocking check demoted to advisory eventually ships a wrong number.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Two kinds of check, two very different consequences</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">The classification is a policy decision, not a technical one — and it must be recorded per check.</text>
+    <text x="12" y="70" fill="currentColor" font-size="10" font-weight="700">Blocking</text>
+    <text x="12" y="86" fill="currentColor" font-size="9" opacity="0.7">quarantine, never promote</text>
+  </g>
+  <g font-family="system-ui, sans-serif" text-anchor="middle">
+    <rect x="150" y="56" width="150" height="46" rx="7" fill="currentColor" opacity="0.14"/>
+    <rect x="150" y="56" width="150" height="46" rx="7" fill="none" stroke="currentColor" stroke-width="1.6"/>
+    <text x="225" y="84" fill="currentColor" font-size="9.5" font-weight="700">schema conformance</text>
+    <rect x="312" y="56" width="150" height="46" rx="7" fill="currentColor" opacity="0.14"/>
+    <rect x="312" y="56" width="150" height="46" rx="7" fill="none" stroke="currentColor" stroke-width="1.6"/>
+    <text x="387" y="84" fill="currentColor" font-size="9.5" font-weight="700">unit declared</text>
+    <rect x="474" y="56" width="150" height="46" rx="7" fill="currentColor" opacity="0.14"/>
+    <rect x="474" y="56" width="150" height="46" rx="7" fill="none" stroke="currentColor" stroke-width="1.6"/>
+    <text x="549" y="84" fill="currentColor" font-size="9.5" font-weight="700">CRS present</text>
+    <rect x="636" y="56" width="150" height="46" rx="7" fill="currentColor" opacity="0.14"/>
+    <rect x="636" y="56" width="150" height="46" rx="7" fill="none" stroke="currentColor" stroke-width="1.6"/>
+    <text x="711" y="84" fill="currentColor" font-size="9.5" font-weight="700">mass balance</text>
+    <rect x="150" y="122" width="150" height="46" rx="7" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="5,3"/>
+    <text x="225" y="150" fill="currentColor" font-size="9.5">outlier magnitude</text>
+    <rect x="312" y="122" width="150" height="46" rx="7" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="5,3"/>
+    <text x="387" y="150" fill="currentColor" font-size="9.5">year-on-year change</text>
+    <rect x="474" y="122" width="150" height="46" rx="7" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="5,3"/>
+    <text x="549" y="150" fill="currentColor" font-size="9.5">completeness</text>
+    <rect x="636" y="122" width="150" height="46" rx="7" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="5,3"/>
+    <text x="711" y="144" fill="currentColor" font-size="9.5">flagged, promoted,</text>
+    <text x="711" y="158" fill="currentColor" font-size="9.5">routed to review</text>
+  </g>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="136" fill="currentColor" font-size="10" font-weight="700">Advisory</text>
+    <text x="12" y="152" fill="currentColor" font-size="9" opacity="0.7">flag, still promote</text>
+    <rect x="12" y="184" width="876" height="40" rx="8" fill="currentColor" opacity="0.06"/>
+    <rect x="12" y="184" width="876" height="40" rx="8" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="28" y="202" fill="currentColor" font-size="9.5" font-weight="700">Promote an advisory check to blocking and it will eventually stop a legitimate record at the worst moment.</text>
+    <text x="28" y="218" fill="#f3a712" font-size="9.5" font-weight="700">Demote a blocking check to advisory and it will eventually ship a wrong number that nobody reads the flag on.</text>
+  </g>
+</svg>
+
 ## Deterministic Implementation Architecture
 
 The implementation below defines the emissions activity contract as a `pandera` `DataFrameSchema` for the columnar checks and layers explicit `geopandas`/`shapely` geometry and mass-balance gates on top, because geometry validity and cross-row reconciliation are not expressible as simple column constraints. It emits structured `structlog` telemetry for every expectation evaluated, splits the frame into a certified partition and a quarantine partition, and raises on structural (fail-fast) breaches while quarantining row-level ones. The same suite can be expressed as a Great Expectations `ExpectationSuite`; the child guide on [building Great Expectations checks for emissions data](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/emissions-data-quality-validation-gates/building-great-expectations-checks-for-emissions-data/) shows that variant in full.
@@ -271,6 +313,67 @@ Under **ISO 14064-3**, which governs the verification and validation of greenhou
 Under **Verra** VM-series methodologies, completeness and the prevention of double-counting are explicit crediting controls: a project must demonstrate that every monitored source within its boundary is captured exactly once. The completeness expectation (row-count manifest plus the rejection of zero and null quantities) directly answers the first, and the uniqueness expectation (duplicate identifiers and overlapping polygons) answers the second. Because the gate quarantines rather than deletes, the evidence that a duplicate was detected and excluded survives in the lineage record, which is what a validation body asks for.
 
 Under **CSRD ESRS E1**, the disclosure regime demands that reported climate metrics carry documented data quality and be subject to assurance. The mass-balance reconciliation is the strongest control here: by asserting that the certified total reconciles to an independently derived control total within tolerance, the gate produces exactly the kind of quantified data-quality statement ESRS E1 assurance expects, rather than an unqualified number. For debugging, treat the quarantine rate, the mass-balance relative gap, and the per-dimension breach counts as monitored signals on every run — including the runs that pass — so a slowly rising quarantine rate or a widening reconciliation gap surfaces a drifting upstream source long before it breaches tolerance and fails a reporting run outright. The full expectation catalogue and the canonical column contract these checks assume are documented in the [MRV data schema reference](https://www.spatialpipelineengineering.org/pipeline-orchestration-compliance-reference/mrv-data-schema-reference/).
+
+<svg viewBox="0 -4 880 250" role="img" aria-labelledby="quar-t quar-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="quar-t">The quarantine loop, and why a quarantine with no exit is a silent data loss</title>
+  <desc id="quar-d">A cycle. A failing record enters quarantine carrying the failed check, the offending value, and the run identifier. From quarantine there are exactly three exits: corrected at source and re-ingested, accepted with a documented exception approved by a named owner, or formally excluded with the exclusion disclosed in the reported figure. A fourth path, remaining in quarantine indefinitely, is drawn as a dead end and labelled as an undisclosed omission — the reported total is quietly missing whatever sits there. An annotation states that quarantine depth and age must be monitored as a first-class signal.</desc>
+  <defs>
+    <marker id="quar-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+    </marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" text-anchor="middle">
+    <rect x="12" y="86" width="166" height="70" rx="9" fill="currentColor" opacity="0.1"/>
+    <rect x="12" y="86" width="166" height="70" rx="9" fill="none" stroke="currentColor" stroke-width="1.7"/>
+    <text x="95" y="112" fill="currentColor" font-size="10.5" font-weight="700">Quarantine</text>
+    <text x="95" y="130" fill="currentColor" font-size="9" opacity="0.78">failed check · value</text>
+    <text x="95" y="146" fill="currentColor" font-size="9" opacity="0.78">run id · owner</text>
+    <rect x="248" y="10" width="222" height="54" rx="8" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <text x="359" y="32" fill="currentColor" font-size="10" font-weight="700">1 · Corrected at source</text>
+    <text x="359" y="52" fill="currentColor" font-size="9" opacity="0.78">re-ingested, re-validated</text>
+    <rect x="248" y="94" width="222" height="54" rx="8" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <text x="359" y="116" fill="currentColor" font-size="10" font-weight="700">2 · Documented exception</text>
+    <text x="359" y="136" fill="currentColor" font-size="9" opacity="0.78">approved by a named owner</text>
+    <rect x="248" y="178" width="222" height="54" rx="8" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <text x="359" y="200" fill="currentColor" font-size="10" font-weight="700">3 · Formal exclusion</text>
+    <text x="359" y="220" fill="currentColor" font-size="9" opacity="0.78">disclosed in the figure</text>
+    <rect x="540" y="94" width="222" height="54" rx="8" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="5,3"/>
+    <text x="651" y="116" fill="#f3a712" font-size="10" font-weight="700">4 · Nothing happens</text>
+    <text x="651" y="136" fill="currentColor" font-size="9" opacity="0.8">an undisclosed omission</text>
+    <rect x="540" y="178" width="330" height="54" rx="8" fill="currentColor" opacity="0.06"/>
+    <rect x="540" y="178" width="330" height="54" rx="8" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="705" y="200" fill="currentColor" font-size="9.5" font-weight="700">Monitor quarantine depth and age.</text>
+    <text x="705" y="218" fill="currentColor" font-size="9.5" opacity="0.82">A growing queue is a shrinking reported total.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1.4" fill="none" marker-end="url(#quar-arrow)">
+    <path d="M178 106 C 210 86, 216 44, 246 38"/>
+    <line x1="178" y1="121" x2="246" y2="121"/>
+    <path d="M178 136 C 210 156, 216 200, 246 205"/>
+    <line x1="470" y1="121" x2="538" y2="121" stroke-dasharray="5,4"/>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### Which checks should block promotion and which should only flag?
+
+Block anything whose failure makes the record uninterpretable — a missing unit, an absent CRS, a schema violation, a mass balance that does not close. Flag anything whose failure makes the record *surprising* but still meaningful: an unusually large value, a sharp year-on-year change, an unexpected gap. The test is whether a human could act on the record as it stands. If they could not, blocking is correct; if they could but should look first, flagging is correct. Record the classification per check, because a verifier will ask why a given failure did not stop the pipeline.
+
+### How should the pipeline handle a quarantined record that nobody resolves?
+
+By making it visible and by treating the queue as part of the reported figure. A record sitting in quarantine is an omission from the total, and an omission nobody has disclosed is a misstatement in slow motion. Monitor quarantine depth and age as first-class signals, set an escalation threshold, and require every record to exit through one of three doors — corrected, excepted with an owner, or formally excluded and disclosed. Any record that has not exited within the period must appear in the completeness statement.
+
+### Does a validation gate belong before or after the emission-factor multiplication?
+
+Both, checking different things. Before multiplication the gates verify the activity data: units, ranges, geometry, completeness. After multiplication they verify the result: magnitude plausibility against historical intensity, mass balance across the aggregation, and consistency between the disaggregated rows and the rolled-up total. Running only the first set means a factor-application bug produces a clean-looking wrong answer; running only the second means you diagnose every failure downstream of where it happened.
+
+### How do I stop validation from becoming a wall of ignored warnings?
+
+Keep the blocking set small and absolute, keep the advisory set genuinely actionable, and delete checks that fire routinely without anyone acting on them. A check nobody acts on is not a control, it is noise that hides the checks that matter. Review the fire rate of every advisory check each period: those that never fire may be miscalibrated, and those that fire on most records are describing normal behaviour rather than a problem.
+
+### What evidence does a verifier want from the validation layer?
+
+The check definitions with their thresholds and classifications, the version of that definition set, the per-run pass and fail counts by check, the quarantine register with dispositions, and the documented exceptions with their approvers. Together these show that the controls existed, ran, and were acted upon — which is the actual question behind "what data quality controls do you operate". Counts alone are weaker than they look: a run with zero failures across all checks invites the question of whether the checks can fail at all.
 
 ## Conclusion
 

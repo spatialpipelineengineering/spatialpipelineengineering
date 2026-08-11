@@ -287,6 +287,39 @@ def calibrate_and_build_forest_mask(
 
 The critical design choice is the ordering: the definition floor filters the candidates *before* the data selects among them. Statistics can push the threshold above the legal minimum when the plots show a higher cut-off reproduces field-observed forest more faithfully, but they can never pull it below the floor to credit more area. That ordering is precisely what a verifier checks, so it is encoded as code rather than left to discipline.
 
+<svg viewBox="0 -4 780 222" role="img" aria-labelledby="swp-t swp-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="swp-t">Threshold sensitivity sweep, and the plateau that makes a choice defensible</title>
+  <desc id="swp-d">A chart of baseline forest area against canopy-cover threshold from 10 to 60 percent. In a well-separated landscape the curve falls steeply at low thresholds, flattens into a plateau between 25 and 40 percent where a five-point change moves the area by under 2 percent, then falls steeply again. In a landscape with a continuous cover gradient the curve declines smoothly throughout with no plateau, so every threshold choice moves the area materially. A panel notes that the plateau is what allows a threshold to be defended as insensitive, and that its absence should be disclosed rather than hidden behind a chosen number.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Look for a plateau before defending a number</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Baseline forest area against the canopy-cover cut-off.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1" opacity="0.22">
+    <line x1="80" y1="60" x2="560" y2="60"/><line x1="80" y1="104" x2="560" y2="104"/><line x1="80" y1="148" x2="560" y2="148"/>
+  </g>
+  <rect x="224" y="50" width="144" height="130" fill="currentColor" opacity="0.09"/>
+  <text x="296" y="66" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" font-weight="700" fill="currentColor">plateau · 25–40%</text>
+  <g stroke="currentColor" stroke-width="1.3">
+    <line x1="80" y1="50" x2="80" y2="180"/>
+    <line x1="80" y1="180" x2="560" y2="180"/>
+  </g>
+  <g font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.72">
+    <text x="80" y="196" text-anchor="middle">10%</text>
+    <text x="224" y="196" text-anchor="middle">25%</text>
+    <text x="368" y="196" text-anchor="middle">40%</text>
+    <text x="560" y="196" text-anchor="middle">60%</text>
+    <text x="34" y="118" transform="rotate(-90 34 118)" text-anchor="middle" font-weight="600">baseline area</text>
+  </g>
+  <polyline points="80,58 152,84 224,110 296,114 368,118 440,144 512,166 560,174" fill="none" stroke="currentColor" stroke-width="2.8"/>
+  <polyline points="80,62 152,80 224,98 296,116 368,134 440,150 512,164 560,172" fill="none" stroke="#f3a712" stroke-width="2.6" stroke-dasharray="7,4"/>
+  <g font-family="system-ui, sans-serif" font-size="9.5" font-weight="600">
+    <text x="576" y="112" fill="currentColor">well-separated landscape</text>
+    <text x="576" y="132" fill="#f3a712">continuous cover gradient</text>
+    <text x="576" y="152" fill="currentColor" opacity="0.82" font-weight="400" font-size="9">no plateau — disclose it</text>
+    <text x="12" y="212" font-weight="400" font-size="9" fill="currentColor" opacity="0.82">On the plateau, a five-point change moves the area by under 2%. That insensitivity is the argument; the number alone is not.</text>
+  </g>
+</svg>
+
 ## Compliance Gating & Audit Trail Generation
 
 The per-threshold metrics table is the audit artifact. It shows every value that was considered, what each would have credited, and why the selected one won — turning a contestable judgement call into a reproducible record. The table below is a representative output over a degraded tropical project where the definition floor is 10% but the plots favour a higher operational cut-off.
@@ -317,6 +350,63 @@ Deploy the calibration within the baseline pipeline following a fixed ingest →
 6. **Submit.** Forward the mask and threshold provenance to [forest carbon baseline and additionality modeling](https://www.spatialpipelineengineering.org/spatial-modeling-carbon-stock-validation/forest-carbon-baseline-and-additionality-modeling/), where the mask defines the area over which the counterfactual baseline is projected, and hand the same threshold to [change detection algorithms for land cover](https://www.spatialpipelineengineering.org/satellite-imagery-processing-for-emissions-tracking/change-detection-algorithms-for-land-cover/) so that loss and gain are measured against the identical forest definition.
 
 For authoritative definitions, consult the [FAO Global Forest Resources Assessment terms and definitions](https://www.fao.org/forest-resources-assessment/en/) and the [Hansen Global Forest Change dataset documentation](https://glad.earthengine.app/view/global-forest-change). By pinning the threshold to a stated definition, calibrating it against independent plots, quantifying the area sensitivity, and shipping the metrics table as evidence, canopy-cover threshold tuning converts the most consequential single number in a forest baseline from an arbitrary default into an auditable, reproducible decision.
+
+<svg viewBox="0 -4 880 212" role="img" aria-labelledby="def-t def-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="def-t">A forest definition has three criteria, and a cover threshold satisfies one</title>
+  <desc id="def-d">Three criteria that together constitute a forest definition. Crown cover, expressed as a minimum percentage, is the one a canopy-cover threshold addresses directly. Minimum height, typically between two and five metres, requires a structural measurement that optical cover products do not provide. Minimum area, typically half a hectare to one hectare, is a spatial criterion applied after thresholding by removing patches below the size limit. A panel notes that applying only the cover criterion classifies scrub and young regrowth as forest and small clearings as deforestation, and that the three must be applied together in a stated order.</desc>
+  <defs>
+    <marker id="def-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+    </marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" text-anchor="middle">
+    <text x="440" y="16" fill="currentColor" font-size="11.5" font-weight="700">A cover threshold satisfies one criterion of three</text>
+    <rect x="12" y="44" width="272" height="112" rx="9" fill="currentColor" opacity="0.12"/>
+    <rect x="12" y="44" width="272" height="112" rx="9" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <text x="148" y="70" fill="currentColor" font-size="10.5" font-weight="700">Crown cover ≥ 30%</text>
+    <text x="148" y="96" fill="currentColor" font-size="9.5" opacity="0.85">what a cover threshold gives you</text>
+    <text x="148" y="122" fill="currentColor" font-size="9.5" opacity="0.85">from optical or structural cover</text>
+    <text x="148" y="142" fill="currentColor" font-size="9" opacity="0.75">necessary, not sufficient</text>
+    <rect x="304" y="44" width="272" height="112" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="304" y="44" width="272" height="112" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="440" y="70" fill="currentColor" font-size="10.5" font-weight="700">Height ≥ 2–5 m</text>
+    <text x="440" y="96" fill="currentColor" font-size="9.5" opacity="0.85">needs a structural measurement</text>
+    <text x="440" y="122" fill="#f3a712" font-size="9.5" font-weight="700">without it, scrub is forest</text>
+    <text x="440" y="142" fill="currentColor" font-size="9" opacity="0.75">LiDAR, GEDI, or a proxy</text>
+    <rect x="596" y="44" width="272" height="112" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="596" y="44" width="272" height="112" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="732" y="70" fill="currentColor" font-size="10.5" font-weight="700">Area ≥ 0.5–1 ha</text>
+    <text x="732" y="96" fill="currentColor" font-size="9.5" opacity="0.85">applied after thresholding</text>
+    <text x="732" y="122" fill="#f3a712" font-size="9.5" font-weight="700">without it, a gap is deforestation</text>
+    <text x="732" y="142" fill="currentColor" font-size="9" opacity="0.75">remove patches below the limit</text>
+    <text x="440" y="192" fill="currentColor" font-size="9.5" opacity="0.85">Apply all three, in a stated order, and record the order — it changes the result at the margins where most disputes live.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1.4" fill="none" marker-end="url(#def-arrow)">
+    <line x1="284" y1="100" x2="302" y2="100"/><line x1="576" y1="100" x2="594" y2="100"/>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### Does a cover threshold on its own implement a forest definition?
+
+No. Every operational forest definition has at least three criteria — minimum crown cover, minimum height, and minimum area — and a cover threshold addresses only the first. Applying it alone classifies scrub and young regrowth as forest and treats sub-hectare canopy gaps as deforestation. Apply all three in a stated order, record the order, and expect the marginal cases to be where disputes concentrate.
+
+### How is the minimum-area criterion applied?
+
+As a morphological filter after thresholding: remove connected forest patches below the minimum area, and correspondingly remove non-forest patches below it from within forest. The second half is routinely forgotten, and its omission means small internal gaps count as loss while small external patches do not count as gain — an asymmetry that biases change detection in one direction. Apply both, in an equal-area projection, and record the connectivity rule used.
+
+### What if no plateau exists in the sensitivity sweep?
+
+Say so, and choose the threshold on external grounds — the methodological definition, a national convention — rather than pretending the choice is insensitive. A continuous cover gradient is a real landscape property, common in dry forest and savanna transitions, and the honest treatment is a wider stated uncertainty on the area estimate reflecting the threshold's influence. Hiding the absence of a plateau behind a confidently stated number is what a reviewer's sweep will find.
+
+### Should the threshold differ between the baseline and monitoring periods?
+
+Never. The whole purpose of freezing it is that measured change reflects the forest rather than the definition. If a revision is genuinely required — a methodology change, a new forest definition — recompute the entire history under both values, report the difference, and treat it as a restatement. A threshold that differs between periods makes the series meaningless in a way no footnote repairs.
+
+### How does the height criterion get satisfied without LiDAR?
+
+With a proxy and an honest statement about it. Where structural data is unavailable, a spectral or texture-based proxy for stand maturity, calibrated against whatever height measurements exist, is defensible if its error is characterised and its effect on the classification is reported. What is not defensible is silently omitting the height criterion, which systematically inflates forest area in regrowth and scrub, and therefore inflates both the baseline and any avoided-loss claim built on it.
 
 ## Related guides
 

@@ -79,6 +79,35 @@ Three failure modes dominate production provenance capture in satellite-to-carbo
 
 3. **Untracked fallback substitution.** When primary computation fails — sensor degradation, corrupt tile boundaries, or unrecoverable cloud cover — pipelines that quietly swap in a fallback dataset destroy the chain of custody. The substituted result looks identical to a primary result in the output raster, but the tonnage now derives from a different observation epoch or a different sensor entirely. Unless the fallback event is recorded with the original failure context, the failure hash, and an explicit substitution justification, the double-counting and misattribution risk this is meant to prevent is instead concealed inside the manifest.
 
+<svg viewBox="0 -4 880 226" role="img" aria-labelledby="lin-t lin-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="lin-t">The four questions a lineage record must answer, and the field that answers each</title>
+  <desc id="lin-d">Four question-and-answer pairs. What went in is answered by the input dataset identifiers and their content digests. What was done to it is answered by the code version, the container digest, and the declared parameters. What came out is answered by the output identifier and its digest. When and by what authority is answered by the run timestamp, the orchestrator run identifier, and the signature over the manifest. A panel notes that a lineage record missing any one of the four cannot support a replay claim, and that the most commonly missing one is the container digest, because teams record the code version and forget that the environment is part of the computation.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Four questions, or it is not lineage</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">A verifier asks these in this order, every time.</text>
+    <rect x="12" y="52" width="418" height="70" rx="8" fill="currentColor" opacity="0.07"/>
+    <rect x="12" y="52" width="418" height="70" rx="8" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="28" y="74" fill="currentColor" font-size="10.5" font-weight="700">What went in?</text>
+    <text x="28" y="96" fill="currentColor" font-size="9.5" opacity="0.85">input dataset ids + content digests</text>
+    <text x="28" y="112" fill="currentColor" font-size="9" opacity="0.72">names alone are not enough — files change under a stable name</text>
+    <rect x="450" y="52" width="418" height="70" rx="8" fill="currentColor" opacity="0.07"/>
+    <rect x="450" y="52" width="418" height="70" rx="8" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="466" y="74" fill="currentColor" font-size="10.5" font-weight="700">What was done to it?</text>
+    <text x="466" y="96" fill="currentColor" font-size="9.5" opacity="0.85">code version + container digest + parameters</text>
+    <text x="466" y="112" fill="#f3a712" font-size="9" font-weight="700">the container digest is the one teams forget</text>
+    <rect x="12" y="134" width="418" height="70" rx="8" fill="currentColor" opacity="0.07"/>
+    <rect x="12" y="134" width="418" height="70" rx="8" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="28" y="156" fill="currentColor" font-size="10.5" font-weight="700">What came out?</text>
+    <text x="28" y="178" fill="currentColor" font-size="9.5" opacity="0.85">output id + digest, stored with the artefact</text>
+    <text x="28" y="194" fill="currentColor" font-size="9" opacity="0.72">so the claim survives log retention</text>
+    <rect x="450" y="134" width="418" height="70" rx="8" fill="currentColor" opacity="0.07"/>
+    <rect x="450" y="134" width="418" height="70" rx="8" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="466" y="156" fill="currentColor" font-size="10.5" font-weight="700">When, and on whose authority?</text>
+    <text x="466" y="178" fill="currentColor" font-size="9.5" opacity="0.85">UTC timestamp + run id + signature over the manifest</text>
+    <text x="466" y="194" fill="currentColor" font-size="9" opacity="0.72">an unsigned record proves sequence, not authorship</text>
+  </g>
+</svg>
+
 ## Deterministic Implementation Architecture
 
 The implementation below captures provenance at every task boundary. It uses `prefect` for orchestration, `rioxarray`/`xarray` with `dask` for chunked raster I/O, `rasterio` and `pyproj` for explicit spatial operations, and `structlog` for audit-ready JSON telemetry. The `ProvenanceTracker` enforces an append-only lineage model: each node records the operation, input/output paths, parameter snapshot, active CRS, SHA-256 checksum, and status, and every task either emits a hashed artifact with a lineage node or routes through a logged fallback — there is no silent pass-through.
@@ -277,6 +306,83 @@ Each design decision in the implementation maps to a specific regulatory control
 - **Transparent fallback with preserved failure context → CSRD ESRS E1 misstatement controls.** The `failure_hash` and substitution justification let an auditor distinguish primary from substituted data, a direct control against the misstatement risk that CSRD ESRS E1 disclosures are scrutinized for, and a precondition for clean [carbon credit registry data integration](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/carbon-credit-registry-data-integration/).
 
 For debugging, treat the masked-pixel fraction and the distortion residual as monitored signals, not just pass/fail gates. Log them on every run, including the ones that pass, so a slowly drifting upstream export or a quietly updated grid file surfaces as a trend long before any single run breaches tolerance. Three recurring silent failures deserve dedicated diagnostics: a missing transformation grid that lets `pyproj` fall back to a null shift that looks successful, anti-meridian wrapping that inverts polygon area, and a fallback that fires so often it has become the de-facto primary path. Store the manifest under object-storage versioning with an immutability lock (for example AWS S3 Object Lock) alongside the registry submission so post-submission tampering is impossible. To standardize these events across heterogeneous platforms, emit them through a shared schema as described in [tracking data lineage with OpenLineage for ESG audits](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/mrv-data-lineage-provenance-tracking/tracking-data-lineage-with-openlineage-for-esg-audits/).
+
+<svg viewBox="0 -4 900 238" role="img" aria-labelledby="rep-t rep-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="rep-t">A replay attempt six years after publication, and where it fails</title>
+  <desc id="rep-d">A left-to-right sequence of the six things a replay needs, each marked as surviving or lost after six years. The reported figure survives because it was published. The output artefact survives in durable storage. The lineage record survives because it was written beside the artefact rather than to the log system. The input files survive because raw-zone retention was set to the audit horizon. The container image is lost because the registry expired untagged layers, marked as the break point. The dependency index is lost because a package version was yanked. An annotation states that four of six surviving is a failed replay, and that the two lost items are the two that are almost always someone else's infrastructure.</desc>
+  <defs>
+    <marker id="rep-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+    </marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" text-anchor="middle">
+    <text x="450" y="16" fill="currentColor" font-size="11.5" font-weight="700">Replay in 2032 of a figure published in 2026</text>
+    <text x="450" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Four of six is a failed replay. The two that fail are the two you do not own.</text>
+    <rect x="12" y="56" width="136" height="72" rx="8" fill="currentColor" opacity="0.1"/>
+    <rect x="12" y="56" width="136" height="72" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <text x="80" y="82" fill="currentColor" font-size="10" font-weight="700">Reported figure</text>
+    <text x="80" y="106" fill="currentColor" font-size="9.5">✓ published</text>
+    <rect x="160" y="56" width="136" height="72" rx="8" fill="currentColor" opacity="0.1"/>
+    <rect x="160" y="56" width="136" height="72" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <text x="228" y="82" fill="currentColor" font-size="10" font-weight="700">Output artefact</text>
+    <text x="228" y="106" fill="currentColor" font-size="9.5">✓ durable store</text>
+    <rect x="308" y="56" width="136" height="72" rx="8" fill="currentColor" opacity="0.1"/>
+    <rect x="308" y="56" width="136" height="72" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <text x="376" y="82" fill="currentColor" font-size="10" font-weight="700">Lineage record</text>
+    <text x="376" y="106" fill="currentColor" font-size="9.5">✓ beside the data</text>
+    <rect x="456" y="56" width="136" height="72" rx="8" fill="currentColor" opacity="0.1"/>
+    <rect x="456" y="56" width="136" height="72" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <text x="524" y="82" fill="currentColor" font-size="10" font-weight="700">Input files</text>
+    <text x="524" y="106" fill="currentColor" font-size="9.5">✓ raw zone kept</text>
+    <rect x="604" y="56" width="136" height="72" rx="8" fill="none" stroke="#f3a712" stroke-width="2" stroke-dasharray="5,3"/>
+    <text x="672" y="82" fill="currentColor" font-size="10" font-weight="700">Container image</text>
+    <text x="672" y="106" fill="#f3a712" font-size="9.5" font-weight="700">✗ layers expired</text>
+    <rect x="752" y="56" width="136" height="72" rx="8" fill="none" stroke="#f3a712" stroke-width="2" stroke-dasharray="5,3"/>
+    <text x="820" y="82" fill="currentColor" font-size="10" font-weight="700">Dependency index</text>
+    <text x="820" y="106" fill="#f3a712" font-size="9.5" font-weight="700">✗ version yanked</text>
+    <rect x="12" y="164" width="876" height="66" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="12" y="164" width="876" height="66" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="450" y="188" fill="currentColor" font-size="10" font-weight="700">The two failures are infrastructure you rent, not data you keep.</text>
+    <text x="450" y="210" fill="currentColor" font-size="9.5" opacity="0.85">Mirror the image and the wheel set into your own durable storage, and test the replay annually rather than assuming it.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1.3" fill="none" marker-end="url(#rep-arrow)" opacity="0.7">
+    <line x1="148" y1="92" x2="158" y2="92"/>
+    <line x1="296" y1="92" x2="306" y2="92"/>
+    <line x1="444" y1="92" x2="454" y2="92"/>
+    <line x1="592" y1="92" x2="602" y2="92"/>
+    <line x1="740" y1="92" x2="750" y2="92"/>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### Is a dataset name enough to identify an input?
+
+No. Files change under a stable name more often than anyone expects — a provider reprocesses an archive in place, a colleague overwrites an extract, a mount points somewhere new. Identify inputs by content digest as well as name, and record both. The digest is what makes the reproduction claim testable: same digests plus same code version must produce the same output, and an assertion to that effect is the cheapest determinism check available.
+
+### Why does the container digest matter if the code version is recorded?
+
+Because the environment is part of the computation. A pinned application version running against a different PROJ build, a different GDAL, or a different NumPy produces different numbers — sometimes subtly, as with a changed default resampling algorithm, sometimes dramatically, as with a missing transformation grid. The code version identifies your logic; the container digest identifies everything your logic depends on. Recording only the first is the most common gap in otherwise careful lineage.
+
+### Should lineage be signed, and by whom?
+
+Signed, by a key held by the system that produced the artefact rather than by an individual. A signature over the manifest turns the record from a claim about what happened into evidence that it has not been altered since, which is what an append-only audit trail is for. Individual keys create a succession problem across a monitoring obligation measured in decades; a service key with documented rotation and an archived public-key history does not.
+
+### How much lineage granularity is too much?
+
+Record at stage boundaries, not at every function call. A lineage graph with a node per transformation step becomes unqueryable and, worse, tempts teams to sample it — at which point it no longer supports a complete trace. Stage boundaries are the seams where artefacts are committed anyway, so lineage at that granularity costs nothing extra and answers the question a verifier actually asks: which inputs, through which code, produced this output.
+
+### What is the difference between lineage and the observability signals?
+
+Overlap in values, difference in purpose and lifetime. Observability answers "is the pipeline behaving" over days and weeks; lineage answers "how was this number produced" over decades. They must share identifiers so an operator incident can be joined to a data record, but they belong in different stores with different retention. Emitting both from a single point, as described in [instrumenting MRV pipelines with OpenTelemetry and structlog](https://www.spatialpipelineengineering.org/pipeline-orchestration-compliance-reference/mrv-pipeline-observability-and-failure-modes/instrumenting-mrv-pipelines-with-opentelemetry-and-structlog/), keeps them from drifting apart.
+
+### Who should own the lineage records operationally?
+
+The team that owns the reported figures, with the platform team owning delivery. Lineage encodes what each transformation means, which only the domain team knows, while retention, indexing, and access control are platform concerns. The arrangement that fails is the inverse: a platform team defining lineage from whatever the orchestrator happens to expose, which produces a graph that is complete in the technical sense and unable to answer the question a verifier actually asks.
+
+### What is the smallest useful lineage implementation?
+
+A provenance block written into every output artefact carrying input digests, code version, container digest, and parameters. No graph database, no collector, no server — four fields beside the data. That alone answers the reproduction question for a single artefact and can be adopted in an afternoon; the graph, the queries, and the visualisation are refinements that matter at scale and are worth nothing if the four fields were never captured.
 
 ## Conclusion
 

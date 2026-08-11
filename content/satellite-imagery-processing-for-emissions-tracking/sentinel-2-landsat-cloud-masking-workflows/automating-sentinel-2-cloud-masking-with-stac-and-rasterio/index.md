@@ -204,6 +204,38 @@ def apply_mask_to_bands(
 
 The CRS-parity guards on both the SCL and every spectral band are the difference between an automated mask and an automated mistake. Because the read window is derived from the same declared `target_crs` and the categorical mask is never resampled with an interpolating method, the half-pixel offset failure mode cannot survive into the output. Excluded pixels are written as an explicit `NaN` nodata so the [temporal aggregation](https://www.spatialpipelineengineering.org/satellite-imagery-processing-for-emissions-tracking/temporal-aggregation-for-land-use-change/) stage can stack acquisitions without ever averaging a cloud value into a composite.
 
+<svg viewBox="0 -4 900 232" role="img" aria-labelledby="scl-t scl-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="scl-t">Scene classification classes and how each should be treated for MRV</title>
+  <desc id="scl-d">Twelve scene classification classes grouped by treatment. Always exclude: saturated or defective, cloud shadow, cloud medium probability, cloud high probability, and thin cirrus. Always keep: vegetation, not-vegetated, and water where water is the subject. Decide by use case: dark area pixels, which include genuine shadow and dark soils; unclassified, which is a residual bucket; and snow or ice, which is legitimate ground in some analyses and an obstruction in others. A panel warns that treating unclassified as clear leaks artefacts and treating it as cloud discards valid data, so the choice must be recorded rather than defaulted.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Three classes need a decision, not a default</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Scene classification, grouped by how an MRV pipeline should treat each class.</text>
+    <rect x="12" y="52" width="284" height="150" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="12" y="52" width="284" height="150" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="28" y="76" fill="currentColor" font-size="10.5" font-weight="700">Always exclude</text>
+    <text x="28" y="100" fill="currentColor" font-size="9.5" opacity="0.85">saturated / defective</text>
+    <text x="28" y="118" fill="currentColor" font-size="9.5" opacity="0.85">cloud shadow</text>
+    <text x="28" y="136" fill="currentColor" font-size="9.5" opacity="0.85">cloud, medium probability</text>
+    <text x="28" y="154" fill="currentColor" font-size="9.5" opacity="0.85">cloud, high probability</text>
+    <text x="28" y="172" fill="currentColor" font-size="9.5" opacity="0.85">thin cirrus</text>
+    <rect x="308" y="52" width="248" height="150" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="308" y="52" width="248" height="150" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="324" y="76" fill="currentColor" font-size="10.5" font-weight="700">Always keep</text>
+    <text x="324" y="100" fill="currentColor" font-size="9.5" opacity="0.85">vegetation</text>
+    <text x="324" y="118" fill="currentColor" font-size="9.5" opacity="0.85">not-vegetated</text>
+    <text x="324" y="136" fill="currentColor" font-size="9.5" opacity="0.85">water, where water is the subject</text>
+    <text x="324" y="164" fill="currentColor" font-size="9" opacity="0.75">these are the observations</text>
+    <text x="324" y="180" fill="currentColor" font-size="9" opacity="0.75">you paid for</text>
+    <rect x="568" y="52" width="320" height="150" rx="9" fill="none" stroke="#f3a712" stroke-width="1.9" stroke-dasharray="6,3"/>
+    <text x="584" y="76" fill="currentColor" font-size="10.5" font-weight="700">Decide, and record the decision</text>
+    <text x="584" y="100" fill="currentColor" font-size="9.5" opacity="0.85">dark area — real shadow AND dark soils</text>
+    <text x="584" y="120" fill="currentColor" font-size="9.5" opacity="0.85">unclassified — the residual bucket</text>
+    <text x="584" y="140" fill="currentColor" font-size="9.5" opacity="0.85">snow / ice — ground or obstruction?</text>
+    <text x="584" y="166" fill="#f3a712" font-size="9.5" font-weight="700">as clear → artefacts leak in</text>
+    <text x="584" y="184" fill="#f3a712" font-size="9.5" font-weight="700">as cloud → valid data discarded</text>
+  </g>
+</svg>
+
 ## Compliance Gating & Audit Trail Generation
 
 A statistically correct mask that carries no record of what it excluded still fails verification. When the SCL is absent or the processing baseline is suspect, the item must take a deterministic fallback route rather than crash, and every processed item must emit a structured provenance record. The functions below implement both, feeding the lineage chain that ultimately backs registry submissions.
@@ -267,6 +299,68 @@ In production the pieces above run as a single deterministic sequence per AOI an
 6. **Submit** — emit the JSON audit record and register it with the lineage service so the masking is discoverable at verification time.
 
 For continental footprints, read with windowed/chunked I/O rather than whole tiles — the `from_bounds` window already restricts each read to the AOI, and pairing that with `dask`-backed reads keeps memory flat while parallelising across thousands of items. Because every step is keyed on the declared target CRS and a fixed exclusion class set, the same AOI and date range reproduce byte-identical masks and audit records on every run, which is exactly the property a third-party auditor needs to re-derive your figures.
+
+<svg viewBox="0 -4 880 208" role="img" aria-labelledby="dil-t dil-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="dil-t">Mask dilation radius against leaked cloud edge and discarded valid area</title>
+  <desc id="dil-d">A chart with dilation radius from 0 to 5 pixels. Leaked cloud-edge pixels per scene fall steeply from 41 000 at no dilation to under 900 at 3 pixels and near zero at 5. Discarded valid pixels rise from zero to 6 000 at 1 pixel, 34 000 at 3 pixels and 96 000 at 5. The curves cross around 2 pixels. A panel notes that a small dilation is almost always worth it because cloud edges are semi-transparent and their leaked values are biased in one direction, while beyond about three pixels the cost of discarded valid data grows faster than the benefit.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">A small dilation is nearly always worth it</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Pixels per scene, against mask dilation radius.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1" opacity="0.22">
+    <line x1="80" y1="60" x2="560" y2="60"/><line x1="80" y1="102" x2="560" y2="102"/><line x1="80" y1="144" x2="560" y2="144"/>
+  </g>
+  <g stroke="currentColor" stroke-width="1.3">
+    <line x1="80" y1="50" x2="80" y2="170"/>
+    <line x1="80" y1="170" x2="560" y2="170"/>
+  </g>
+  <g font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.72">
+    <text x="72" y="64" text-anchor="end">100k</text>
+    <text x="72" y="106" text-anchor="end">60k</text>
+    <text x="72" y="148" text-anchor="end">20k</text>
+    <text x="80" y="188" text-anchor="middle">0 px</text>
+    <text x="272" y="188" text-anchor="middle">2 px</text>
+    <text x="464" y="188" text-anchor="middle">4 px</text>
+    <text x="560" y="188" text-anchor="middle">5 px</text>
+  </g>
+  <polyline points="80,127 176,150 272,163 368,168 464,169 560,170" fill="none" stroke="#f3a712" stroke-width="2.6"/>
+  <polyline points="80,170 176,164 272,148 368,134 464,102 560,62" fill="none" stroke="currentColor" stroke-width="2.6" stroke-dasharray="7,4"/>
+  <circle cx="272" cy="156" r="6" fill="none" stroke="currentColor" stroke-width="2.2"/>
+  <g font-family="system-ui, sans-serif" font-size="9.5" font-weight="600">
+    <text x="572" y="174" fill="#f3a712">leaked cloud edge</text>
+    <text x="572" y="66" fill="currentColor">discarded valid</text>
+    <text x="286" y="146" fill="currentColor" font-size="9">crossover ≈ 2 px</text>
+  </g>
+  <g font-family="system-ui, sans-serif">
+    <rect x="596" y="86" width="272" height="72" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="596" y="86" width="272" height="72" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="612" y="110" fill="currentColor" font-size="9.5" font-weight="700">Cloud edges are semi-transparent</text>
+    <text x="612" y="130" fill="currentColor" font-size="9.5" opacity="0.85">so leaked values are biased in one</text>
+    <text x="612" y="146" fill="currentColor" font-size="9.5" opacity="0.85">direction and never average out.</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### How should the scene classification's "unclassified" class be treated?
+
+As a decision recorded in configuration, not a default in code. Unclassified is a residual bucket containing genuinely ambiguous pixels; treating it as clear leaks artefacts into composites, and treating it as cloud discards valid observations in exactly the areas where the classifier struggled. The defensible approach is to exclude it from analysis but count it separately in the masked-fraction statistics, so a tile with an unusually large unclassified fraction is visible rather than silently thinned.
+
+### Should the mask be resampled to the analysis grid, and how?
+
+Yes, and with nearest-neighbour only. The scene classification is categorical, so any interpolating resampler invents class values that do not exist — the same failure as bilinear resampling a land-cover map. Where the QA band is coarser than the reflectance bands, nearest-neighbour upsampling is correct and its blockiness is honest; smoothing it produces a mask that looks better and is wrong at every boundary.
+
+### How do I combine masks from Sentinel-2 and Landsat consistently?
+
+Decode each sensor's own quality encoding into a common boolean vocabulary — clear, cloud, shadow, cirrus, snow, nodata — before combining anything. The two sensors encode confidence differently and share no bit layout, so a shortcut that maps bits directly between them will be wrong. Once both are in the common vocabulary, align to the analysis grid and apply the same downstream rules to each.
+
+### What clear-fraction floor should gate a tile?
+
+Low enough to keep usable partial observations and high enough that a nearly-empty tile does not enter a composite as if it were a full one — 30 to 60% is a common range, and the right value depends on how the composite weights observations. Whatever you choose, carry the clear fraction as a column rather than only using it as a filter, so downstream aggregation can weight by it and so the reported figure's observational basis is visible.
+
+### Does the STAC query need to pin the processing baseline?
+
+Yes. Providers reprocess archives, and a scene's reflectance and its quality band both change between baselines. A query that does not pin the baseline will silently mix versions within a single composite and will return different data when re-run. Pin it in the query, record it per scene in the output, and treat a baseline change as a restatement decision rather than a transparent upgrade.
 
 ## Related
 

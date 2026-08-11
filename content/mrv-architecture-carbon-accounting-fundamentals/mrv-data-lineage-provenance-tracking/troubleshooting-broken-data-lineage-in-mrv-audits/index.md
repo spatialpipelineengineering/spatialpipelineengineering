@@ -201,6 +201,43 @@ def diagnose(g: nx.DiGraph, reported: list[str]) -> dict[str, list]:
 
 A clean pipeline returns empty lists across the board. Anything else is a concrete work list: each entry names the exact node, path, or run that severs the trail, so repair can be targeted rather than a blanket regeneration of the quarter.
 
+<svg viewBox="0 -4 880 236" role="img" aria-labelledby="brk-t brk-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="brk-t">Four ways a lineage graph breaks, and which are recoverable</title>
+  <desc id="brk-d">Four break types with their recoverability. A missing edge, where a run emitted no event, is recoverable by re-running with the pinned inputs if they still exist. A dangling node, where a dataset is referenced but never produced, is recoverable by locating the producer or by declaring the dataset an external input. An identifier collision, where two different datasets share a name, is recoverable only by re-keying on content digest. An unpinned version, where a run recorded no factor-set or code version, is not recoverable at all, because there is no way to determine which inputs produced the figure. A panel notes that three of four are recoverable and the fourth is prevented only at emission time.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Three of four breaks are recoverable — the fourth is not</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Which is why the unrecoverable one has to be prevented at emission.</text>
+    <rect x="12" y="52" width="212" height="150" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="12" y="52" width="212" height="150" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="28" y="76" fill="currentColor" font-size="10.5" font-weight="700">Missing edge</text>
+    <text x="28" y="98" fill="currentColor" font-size="9.5" opacity="0.85">a run emitted no event</text>
+    <text x="28" y="132" fill="currentColor" font-size="9.5" font-weight="700">recoverable</text>
+    <text x="28" y="152" fill="currentColor" font-size="9" opacity="0.78">re-run on the pinned</text>
+    <text x="28" y="168" fill="currentColor" font-size="9" opacity="0.78">inputs, if they survive</text>
+    <rect x="236" y="52" width="212" height="150" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="236" y="52" width="212" height="150" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="252" y="76" fill="currentColor" font-size="10.5" font-weight="700">Dangling node</text>
+    <text x="252" y="98" fill="currentColor" font-size="9.5" opacity="0.85">referenced, never produced</text>
+    <text x="252" y="132" fill="currentColor" font-size="9.5" font-weight="700">recoverable</text>
+    <text x="252" y="152" fill="currentColor" font-size="9" opacity="0.78">find the producer, or</text>
+    <text x="252" y="168" fill="currentColor" font-size="9" opacity="0.78">declare it an external input</text>
+    <rect x="460" y="52" width="212" height="150" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="460" y="52" width="212" height="150" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="476" y="76" fill="currentColor" font-size="10.5" font-weight="700">Identifier collision</text>
+    <text x="476" y="98" fill="currentColor" font-size="9.5" opacity="0.85">two datasets, one name</text>
+    <text x="476" y="132" fill="currentColor" font-size="9.5" font-weight="700">recoverable, painfully</text>
+    <text x="476" y="152" fill="currentColor" font-size="9" opacity="0.78">re-key everything on</text>
+    <text x="476" y="168" fill="currentColor" font-size="9" opacity="0.78">content digest</text>
+    <rect x="684" y="52" width="184" height="150" rx="9" fill="none" stroke="#f3a712" stroke-width="1.9" stroke-dasharray="6,3"/>
+    <text x="700" y="76" fill="currentColor" font-size="10.5" font-weight="700">Unpinned version</text>
+    <text x="700" y="98" fill="currentColor" font-size="9.5" opacity="0.85">no code or factor version</text>
+    <text x="700" y="132" fill="#f3a712" font-size="9.5" font-weight="700">not recoverable</text>
+    <text x="700" y="152" fill="currentColor" font-size="9" opacity="0.78">nothing identifies which</text>
+    <text x="700" y="168" fill="currentColor" font-size="9" opacity="0.78">inputs produced the figure</text>
+    <text x="12" y="224" fill="currentColor" font-size="9.5" opacity="0.82">Assert the pin set at emission and refuse to emit an event without it — a run with no version is a run with no defence.</text>
+  </g>
+</svg>
+
 ## Deterministic Transformation Logic: Rebuild, Re-Pin, Reconnect
 
 Repair must be as deterministic as the diagnosis. The routine below takes the diagnostic report and applies the minimal set of corrections: it recomputes and rewrites content hashes for any input whose bytes drifted, backfills the missing run edge for an orphaned output by re-executing the recorded transform under its pinned parameters, and stamps `factor_version`, `library_versions`, and `code_commit` into any run that lost them. Every mutation is itself logged as a new provenance event, so the *repair* is auditable — an auditor sees not only the corrected graph but the record of how it was corrected.
@@ -326,6 +363,68 @@ Wire the diagnosis, repair, and gate into the release path as a fixed ingest →
 6. **Submit.** Forward the verified lineage to registry submission only after the gate passes, and re-emit the backfilled edges through the [OpenLineage integration](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/mrv-data-lineage-provenance-tracking/tracking-data-lineage-with-openlineage-for-esg-audits/) so the live graph and the audit snapshot agree.
 
 Treating lineage repair as a gated stage rather than an audit-time fire drill changes its economics entirely. The diagnosis runs cheaply on every release, the repair is deterministic and self-documenting, and the gate guarantees that no untraceable figure is ever submitted — which is the only state in which a carbon claim can survive third-party verification, with every reported tonne resolving cleanly back to the pixel or parcel that produced it.
+
+<svg viewBox="0 -4 880 228" role="img" aria-labelledby="trv-t trv-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="trv-t">Traversing upstream from a disputed figure to the first break</title>
+  <desc id="trv-d">A backward traversal from a disputed reported tonne. Level one, the aggregation run, resolves cleanly with its inputs and versions. Level two, the factor application run, resolves cleanly. Level three, the spatial harmonisation run, resolves but its factor-set version field is empty, marked as the first break. Level four, the ingestion run, is unreachable because the harmonisation run recorded no input dataset identifier. A panel states that the traversal must stop and report at the first break rather than continuing past it, because everything upstream of an unresolved node is unverified regardless of how complete it looks.</desc>
+  <defs>
+    <marker id="trv-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+    </marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" text-anchor="middle">
+    <text x="440" y="16" fill="currentColor" font-size="11.5" font-weight="700">Stop at the first break — do not traverse past it</text>
+    <text x="440" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Everything upstream of an unresolved node is unverified, however complete it looks.</text>
+    <rect x="12" y="56" width="180" height="72" rx="8" fill="currentColor" opacity="0.12"/>
+    <rect x="12" y="56" width="180" height="72" rx="8" fill="none" stroke="currentColor" stroke-width="1.6"/>
+    <text x="102" y="80" fill="currentColor" font-size="10" font-weight="700">Disputed figure</text>
+    <text x="102" y="102" fill="currentColor" font-size="9.5">18 402 tCO₂e</text>
+    <text x="102" y="118" fill="currentColor" font-size="9" opacity="0.75">FY2029 Q3</text>
+    <rect x="216" y="56" width="180" height="72" rx="8" fill="currentColor" opacity="0.07"/>
+    <rect x="216" y="56" width="180" height="72" rx="8" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="306" y="80" fill="currentColor" font-size="10" font-weight="700">Aggregation run</text>
+    <text x="306" y="104" fill="currentColor" font-size="9.5">✓ inputs, versions</text>
+    <rect x="420" y="56" width="180" height="72" rx="8" fill="currentColor" opacity="0.07"/>
+    <rect x="420" y="56" width="180" height="72" rx="8" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="510" y="80" fill="currentColor" font-size="10" font-weight="700">Factor application</text>
+    <text x="510" y="104" fill="currentColor" font-size="9.5">✓ factor set ef-2029.1</text>
+    <rect x="624" y="56" width="180" height="72" rx="8" fill="none" stroke="#f3a712" stroke-width="2" stroke-dasharray="6,3"/>
+    <text x="714" y="80" fill="currentColor" font-size="10" font-weight="700">Harmonisation run</text>
+    <text x="714" y="102" fill="#f3a712" font-size="9.5" font-weight="700">✗ no input dataset id</text>
+    <text x="714" y="118" fill="#f3a712" font-size="9" font-weight="700">first break</text>
+    <rect x="624" y="152" width="180" height="56" rx="8" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="4,3" opacity="0.5"/>
+    <text x="714" y="176" fill="currentColor" font-size="10" opacity="0.6">Ingestion run</text>
+    <text x="714" y="196" fill="currentColor" font-size="9" opacity="0.6">unreachable</text>
+    <text x="300" y="180" fill="currentColor" font-size="9.5" font-weight="700">Report: “traceable to harmonisation; upstream unverified.”</text>
+    <text x="300" y="200" fill="currentColor" font-size="9.5" opacity="0.82">That sentence is defensible. A reconstructed guess is not.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1.4" fill="none" marker-end="url(#trv-arrow)">
+    <line x1="192" y1="92" x2="214" y2="92"/><line x1="396" y1="92" x2="418" y2="92"/><line x1="600" y1="92" x2="622" y2="92"/>
+    <line x1="714" y1="128" x2="714" y2="150" stroke-dasharray="4,3" opacity="0.5"/>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### What should I tell a verifier when the graph is broken and cannot be repaired?
+
+Exactly where the trace stops and what remains verified below it. "This figure is traceable to the harmonisation stage; the ingestion link was not recorded and the source files for that period are no longer retrievable" is a defensible statement that scopes the problem. Reconstructing a plausible-looking chain from inference is not, and a verifier who later discovers the reconstruction will treat every other claim differently. Disclose the gap, quantify the affected volume, and describe the control now preventing recurrence.
+
+### Is it worth back-filling lineage for historical runs?
+
+Only where the inputs and the environment still exist, in which case a re-run under the pinned versions produces genuine lineage rather than a reconstruction. Where they do not, a back-filled record is an assertion dressed as evidence, and it is safer to leave the gap documented. The effort is usually better spent making the current period airtight and setting retention so the question does not arise again.
+
+### How do I detect breaks before an auditor does?
+
+Run a graph-integrity job on a schedule: every published figure must resolve to a complete chain with no dangling nodes, no orphaned running states, and a full pin set on every node. Treat a failure the same way you treat a failed validation gate. Discovering a break three days after it happens usually means the inputs are still there and a re-run fixes it; discovering it three years later usually means they are not.
+
+### What is the minimum pin set a run must record?
+
+Input dataset identifiers with content digests, the code version, the container digest, the factor-set version, and the declared parameters. Missing any one of them makes the run unreproducible, and unreproducible is the one break with no recovery path. Assert the set at emission and refuse to emit an incomplete event — failing the run is dramatically cheaper than discovering years later that the figure cannot be defended.
+
+### Do identifier collisions really happen in practice?
+
+Frequently, and usually through path reuse: an extract written to the same location each period, a dataset name that omits the period, or a mount that points somewhere different between environments. The graph then shows one node where there were several distinct datasets, and every downstream trace through it is ambiguous. Keying dataset identity on content digest as well as name resolves it, and is the same discipline that makes the determinism invariant possible.
 
 ## Related guides
 

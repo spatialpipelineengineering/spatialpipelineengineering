@@ -46,6 +46,26 @@ layout: base.njk
   }
 </script>
 
+{%- if faq | length -%}
+<script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "url": "{{ site.url }}{{ page.url }}",
+    "mainEntity": [
+      {%- for f in faq -%}
+        {%- if not loop.first %},{% endif -%}
+        {
+          "@type": "Question",
+          "name": {{ f.question | dump | safe }},
+          "acceptedAnswer": { "@type": "Answer", "text": {{ f.answer | dump | safe }} }
+        }
+      {%- endfor -%}
+    ]
+  }
+</script>
+{%- endif -%}
+
 <div class="container page-shell">
   <nav class="breadcrumbs" aria-label="Breadcrumb">
     <ol>

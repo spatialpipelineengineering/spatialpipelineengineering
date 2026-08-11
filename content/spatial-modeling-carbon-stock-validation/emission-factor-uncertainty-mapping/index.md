@@ -7,7 +7,7 @@ Emission Factor Uncertainty Mapping is the variance-propagation stage that conve
 
 This component sits directly downstream of [biomass estimation from LiDAR & SAR fusion](https://www.spatialpipelineengineering.org/spatial-modeling-carbon-stock-validation/biomass-estimation-from-lidar-sar-fusion/), inheriting the calibrated aboveground biomass rasters and their per-pixel error bands, and runs alongside [ground-truth alignment for carbon models](https://www.spatialpipelineengineering.org/spatial-modeling-carbon-stock-validation/ground-truth-alignment-for-carbon-models/), which supplies the field-to-sensor variance ratios that anchor the propagation. It depends on deterministic [CRS alignment](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/geospatial-coordinate-reference-systems-crs-alignment/) established in the foundational MRV layer to keep every area-weighted variance term honest, and it emits envelopes that must satisfy [MRV data lineage requirements](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/mrv-data-lineage-provenance-tracking/) before any figure reaches a registry. The core engineering challenge is propagating uncertainty through spatial operations without introducing artificial correlation or masking legitimate ecological signal.
 
-<svg viewBox="0 0 920 250" role="img" aria-label="Emission factor uncertainty mapping pipeline. Five sequential stages carry variance forward: input harmonization of emission-factor rasters, per-pixel sigma and CRS; a propagation engine combining analytic and spatial Monte Carlo draws; covariance correction by variogram or Gaussian Markov random field; envelope generation producing a mean estimate with 90 and 95 percent bounds; and compliance export of uncertainty deductions. A bar beneath the stages notes that variance and covariance assumptions propagate through every boundary and are serialized with the envelope for reproducible lineage." xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:920px;display:block;margin:1.5rem auto;">
+<svg viewBox="-2 48 894 198" role="img" aria-label="Emission factor uncertainty mapping pipeline. Five sequential stages carry variance forward: input harmonization of emission-factor rasters, per-pixel sigma and CRS; a propagation engine combining analytic and spatial Monte Carlo draws; covariance correction by variogram or Gaussian Markov random field; envelope generation producing a mean estimate with 90 and 95 percent bounds; and compliance export of uncertainty deductions. A bar beneath the stages notes that variance and covariance assumptions propagate through every boundary and are serialized with the envelope for reproducible lineage." xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:920px;display:block;margin:1.5rem auto;">
   <title>Emission-factor uncertainty mapping: a five-stage pipeline that propagates variance into a compliance envelope</title>
   <desc>Five left-to-right stages. Stage one harmonizes inputs — emission-factor rasters, per-pixel sigma and CRS. Stage two is a propagation engine running analytic plus spatial Monte Carlo. Stage three applies covariance correction via variogram or GMRF. Stage four generates the envelope: a mean estimate with 90 and 95 percent bounds. Stage five exports uncertainty deductions for compliance. An annotation bar below records that variance and the covariance assumptions travel through every boundary and are serialized with the envelope so the figure is reproducible.</desc>
   <defs>
@@ -79,6 +79,33 @@ Three failure modes dominate production uncertainty mapping in spatial carbon MR
 2. **Spatial drift and grid misalignment inflating variance.** When emission-factor grids, biomass rasters, and covariate layers are not snapped to a common grid, sub-pixel offsets between sensor footprints and the reference lattice register one phenomenon against another. The resulting mismatch is recorded as variance even though it is a geometry error, not a measurement error. A half-pixel drift across a heterogeneous land-cover boundary can double the apparent local sigma, widening the envelope precisely where the ecological signal is strongest and triggering unwarranted uncertainty deductions over otherwise well-characterized stands.
 
 3. **Overconfident bounds in data-sparse regions.** A single global confidence interval applied uniformly masks the reality that field-plot density varies by orders of magnitude across a project. In a zone with five plots per hundred square kilometers, the empirical variance estimate is itself highly uncertain, yet a global threshold reports the same tight bound it reports over densely sampled terrain. The failure is silent: the envelope looks consistent across the project while concealing that whole strata were extrapolated from almost no ground truth, the exact condition third-party verifiers probe first when they sample for field validation.
+
+<svg viewBox="0 -4 880 218" role="img" aria-labelledby="unc-t unc-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="unc-t">Where the uncertainty in a reported tonnage actually comes from</title>
+  <desc id="unc-d">A decomposition of relative uncertainty on a reported forest carbon figure. The emission factor itself contributes 22 percent. The activity area contributes 9 percent. The biomass model contributes 31 percent. Spatial correlation between neighbouring estimates, which is usually ignored, contributes an additional 18 percent that would be zero if errors were independent. Temporal sampling contributes 7 percent. Combined in quadrature the total is 44 percent; treating the errors as independent would report 40 percent, understating the interval. A panel notes that the correlation term is the one most often omitted and that it can never reduce the total.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">The term most often omitted can only make it worse</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Relative contributions to uncertainty on a reported forest carbon figure.</text>
+    <text x="12" y="72" fill="currentColor" font-size="10" font-weight="700">Biomass model</text>
+    <text x="12" y="104" fill="currentColor" font-size="10" font-weight="700">Emission factor</text>
+    <text x="12" y="136" fill="#f3a712" font-size="10" font-weight="700">Spatial correlation</text>
+    <text x="12" y="168" fill="currentColor" font-size="10" font-weight="700">Area · temporal</text>
+  </g>
+  <g>
+    <rect x="176" y="56" width="310" height="22" rx="4" fill="currentColor" opacity="0.3"/>
+    <text x="496" y="72" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">31%</text>
+    <rect x="176" y="88" width="220" height="22" rx="4" fill="currentColor" opacity="0.26"/>
+    <text x="406" y="104" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">22%</text>
+    <rect x="176" y="120" width="180" height="22" rx="4" fill="#f3a712" opacity="0.42"/>
+    <text x="366" y="136" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="#f3a712">18% — zero only if errors are independent, and they are not</text>
+    <rect x="176" y="152" width="160" height="22" rx="4" fill="currentColor" opacity="0.18"/>
+    <text x="346" y="168" font-family="system-ui, sans-serif" font-size="9.5" fill="currentColor">9% + 7%</text>
+  </g>
+  <g font-family="system-ui, sans-serif">
+    <rect x="12" y="186" width="856" height="26" rx="7" fill="currentColor" opacity="0.06"/>
+    <text x="28" y="204" fill="currentColor" font-size="9.5" font-weight="700">Combined in quadrature: 44%. Assuming independence gives 40% — a number that is not merely optimistic but wrong in a known direction.</text>
+  </g>
+</svg>
 
 ## Deterministic Implementation Architecture
 
@@ -245,6 +272,63 @@ Each design decision in the implementation maps to a specific regulatory control
 Map the outputs to controls as follows. The covariance-corrected variance surface answers **ISO 14064-3**, which expects a reported figure to be both reproducible and conservative; a propagation that preserves autocorrelation will not under-report the aggregate error, so the certified total stays on the conservative side of the true distribution. The relative CI width feeds **Verra VM-series** uncertainty deductions directly — VM0042 and related methodologies require a quantified deduction when monitored-parameter uncertainty exceeds a threshold, and exporting the width as a continuous raster lets the platform apply that deduction per stratum without manual intervention. The sparse-inflation flags and the disclosed confidence levels satisfy **CSRD ESRS E1**, which scrutinizes land-use and agriculture disclosures for transparent treatment of estimation uncertainty rather than a single unqualified number.
 
 For debugging, treat the median CI width, the sparse fraction, and the grid offset as monitored signals on every run, including the ones that pass, so a slowly drifting upstream export or a quietly resampled covariate surfaces as a trend long before any single run breaches tolerance. Three recurring silent failures deserve dedicated diagnostics: an independence assumption that survives into a covariance-aware codepath and collapses aggregate variance; a temporal mismatch between a multi-year emission-factor composite and a snapshot biomass layer, which should be propagated as an additive temporal-variance term rather than ignored; and a fallback to IPCC Tier 1 conservative defaults in under-sampled zones that fires so often it has quietly become the de-facto estimate. Validation should include variogram analysis of the propagated residuals, cross-validation against held-out field plots, and sensitivity testing of the correlation length, all calibrated against the field-to-sensor variance ratios produced during [ground-truth alignment for carbon models](https://www.spatialpipelineengineering.org/spatial-modeling-carbon-stock-validation/ground-truth-alignment-for-carbon-models/).
+
+<svg viewBox="0 -4 880 218" role="img" aria-labelledby="agg-t agg-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="agg-t">How the reported interval shrinks with area under three correlation assumptions</title>
+  <desc id="agg-d">A chart of relative interval on an aggregated total against the number of pixels aggregated, from 100 to 100 000. Under an independence assumption the interval falls as one over the square root of the count, from 30 percent to under 1 percent. Under a realistic spatial correlation with a range of a few hundred metres the interval falls much more slowly, flattening near 9 percent. Under full correlation, appropriate for a systematic model bias, the interval does not fall at all and stays at 30 percent. A panel notes that the independence curve is the one most pipelines implicitly assume and that it is the reason aggregated figures often carry implausibly tight intervals.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Why an aggregated interval is almost never as tight as it looks</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Relative interval on a total, against the number of pixels aggregated.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1" opacity="0.22">
+    <line x1="80" y1="60" x2="560" y2="60"/><line x1="80" y1="102" x2="560" y2="102"/><line x1="80" y1="144" x2="560" y2="144"/>
+  </g>
+  <g stroke="currentColor" stroke-width="1.3">
+    <line x1="80" y1="50" x2="80" y2="176"/>
+    <line x1="80" y1="176" x2="560" y2="176"/>
+  </g>
+  <g font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.72">
+    <text x="72" y="64" text-anchor="end">30%</text>
+    <text x="72" y="106" text-anchor="end">20%</text>
+    <text x="72" y="148" text-anchor="end">10%</text>
+    <text x="72" y="180" text-anchor="end">0</text>
+    <text x="80" y="194" text-anchor="middle">100</text>
+    <text x="240" y="194" text-anchor="middle">1 000</text>
+    <text x="400" y="194" text-anchor="middle">10 000</text>
+    <text x="560" y="194" text-anchor="middle">100 000</text>
+  </g>
+  <polyline points="80,60 240,60 400,60 560,60" fill="none" stroke="#f3a712" stroke-width="2.8"/>
+  <polyline points="80,60 240,110 400,142 480,150 560,152" fill="none" stroke="currentColor" stroke-width="2.8"/>
+  <polyline points="80,60 240,138 400,164 560,173" fill="none" stroke="currentColor" stroke-width="2.4" stroke-dasharray="7,4"/>
+  <g font-family="system-ui, sans-serif" font-size="9.5" font-weight="600">
+    <text x="576" y="64" fill="#f3a712">full correlation</text>
+    <text x="576" y="156" fill="currentColor">realistic spatial correlation</text>
+    <text x="576" y="177" fill="currentColor" opacity="0.85">independence (usually assumed)</text>
+    <text x="12" y="212" font-weight="400" fill="currentColor" opacity="0.82">A systematic model bias is fully correlated: aggregating a million pixels does not reduce it by one part.</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### Why does spatial correlation matter so much when aggregating?
+
+Because it decides how fast the interval shrinks with area, and the difference is enormous. Independent errors shrink as one over the square root of the count, so a million pixels yield an implausibly tight total; spatially correlated errors shrink far more slowly, and a systematic model bias does not shrink at all. Most published aggregate intervals implicitly assume independence, which is why they are often narrower than any reader familiar with the underlying data would believe.
+
+### How do I estimate the correlation length?
+
+From the empirical semivariogram of the model residuals, not of the predictions. The predictions inherit the covariates' spatial structure and will show correlation regardless of the model's error behaviour; the residuals show what is left unexplained, which is the quantity that matters for aggregation. Compute it once per landscape, record it, and re-check when the model changes.
+
+### What belongs in the uncertainty budget?
+
+Every term that varies between runs or between areas: the model's own residual error, the calibration data's measurement error, the emission factor's stated uncertainty, the area estimate's error, temporal sampling, and the correlation structure that governs how they combine. Omitting a term does not make it zero — it makes the reported interval wrong in a known direction, which is worse than reporting a wider interval honestly.
+
+### Should uncertainty be reported per pixel or per reported figure?
+
+Both, because they answer different questions and one cannot be derived from the other without the correlation structure. Per-pixel intervals let a downstream consumer aggregate to a different boundary; the report-level interval is what the disclosure states. Carry the per-pixel intervals as a band and compute the report-level figure from them together with the correlation model, rather than attaching a single number at the end.
+
+### How does the uncertainty affect what can actually be credited?
+
+Directly, through the conservativeness deduction. Most methodologies credit a lower bound rather than the point estimate, with the deduction scaling with the relative interval, so a wide interval has a visible cost in issued volume. That is the mechanism working as designed — it creates an incentive to reduce uncertainty rather than to argue about it — and it is why an honest, wider interval computed with the correlation term is not merely more correct but usually cheaper to defend than a narrow one that a reviewer rejects.
 
 ## Conclusion
 

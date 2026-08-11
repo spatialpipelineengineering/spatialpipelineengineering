@@ -280,6 +280,39 @@ def fuse_lidar_sar(sar_path: str, chm_1m_path: str, out_path: str,
 
 The resulting multi-dimensional array is the input to a regime-weighted allometric regression or gradient-boosted ensemble. Keeping the cross-polarization ratio log-transformed before stacking is what stabilises variance across the saturation knee.
 
+<svg viewBox="0 -4 880 228" role="img" aria-labelledby="ftp-t ftp-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="ftp-t">Matching a LiDAR footprint to a SAR pixel, and the three ways it goes wrong</title>
+  <desc id="ftp-d">A LiDAR footprint drawn over a SAR pixel grid, with three mismatch cases. In the aligned case the footprint sits inside one pixel and the pairing is valid. In the straddling case the footprint spans four pixels, so pairing it with any single pixel mixes structure from areas the LiDAR did not see; the fix is to aggregate the SAR pixels weighted by overlap. In the offset case a systematic geolocation shift pairs the footprint with a neighbouring pixel entirely, producing a biased rather than noisy model. A panel notes that footprint geolocation uncertainty and SAR pixel size are both of order ten metres, so exact pairing is rarely available and overlap weighting is the default rather than the exception.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Exact pairing is rarely available</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Footprint geolocation and pixel size are both about ten metres.</text>
+    <text x="106" y="60" text-anchor="middle" fill="currentColor" font-size="10" font-weight="700">Aligned — valid</text>
+    <text x="368" y="60" text-anchor="middle" fill="currentColor" font-size="10" font-weight="700">Straddling — weight by overlap</text>
+    <text x="656" y="60" text-anchor="middle" fill="#f3a712" font-size="10" font-weight="700">Offset — biased, not noisy</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1" opacity="0.5" fill="none">
+    <rect x="42" y="74" width="64" height="64"/><rect x="106" y="74" width="64" height="64"/>
+    <rect x="42" y="138" width="64" height="64"/><rect x="106" y="138" width="64" height="64"/>
+    <rect x="304" y="74" width="64" height="64"/><rect x="368" y="74" width="64" height="64"/>
+    <rect x="304" y="138" width="64" height="64"/><rect x="368" y="138" width="64" height="64"/>
+    <rect x="592" y="74" width="64" height="64"/><rect x="656" y="74" width="64" height="64"/>
+    <rect x="592" y="138" width="64" height="64"/><rect x="656" y="138" width="64" height="64"/>
+  </g>
+  <circle cx="138" cy="106" r="24" fill="currentColor" opacity="0.28"/>
+  <circle cx="138" cy="106" r="24" fill="none" stroke="currentColor" stroke-width="2"/>
+  <circle cx="368" cy="138" r="24" fill="currentColor" opacity="0.28"/>
+  <circle cx="368" cy="138" r="24" fill="none" stroke="currentColor" stroke-width="2"/>
+  <circle cx="662" cy="112" r="24" fill="#f3a712" opacity="0.3"/>
+  <circle cx="662" cy="112" r="24" fill="none" stroke="#f3a712" stroke-width="2.4"/>
+  <circle cx="624" cy="106" r="24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="4,3"/>
+  <line x1="624" y1="106" x2="662" y2="112" stroke="#f3a712" stroke-width="1.8"/>
+  <g font-family="system-ui, sans-serif" text-anchor="middle" font-size="9" fill="currentColor" opacity="0.8">
+    <text x="106" y="216">one pixel, one footprint</text>
+    <text x="368" y="216">four pixels, area-weighted mean</text>
+    <text x="656" y="216">paired with the wrong pixel, every time</text>
+  </g>
+</svg>
+
 ## Compliance Gating & Audit Trail Generation
 
 MRV compliance demands explicit, spatially resolved uncertainty. Biomass estimates must carry per-pixel bounds satisfying ISO 14064-3 verification thresholds — typically ≤10% uncertainty at 90% confidence for project-scale baselines. Uncertainty is propagated through the allometric form `AGB = exp(β₀ + β₁·ln(CHM) + β₂·ln(VH/VV) + ε)` using the law of propagation of uncertainty, `u_c² = Σ(∂AGB/∂x_i)²·u(x_i)² + 2·ΣΣ(∂AGB/∂x_i)(∂AGB/∂x_j)·cov(x_i,x_j)`, evaluated by first-order Taylor expansion or Monte Carlo sampling.
@@ -349,6 +382,28 @@ A production fusion run is a strictly ordered, containerised sequence — Docker
 6. **Submit** — call `gate_and_audit`; on pass, attach the signed audit JSON and forward to the registry submission queue, threshold tuning handled downstream by [threshold tuning for carbon stock baselines](https://www.spatialpipelineengineering.org/spatial-modeling-carbon-stock-validation/threshold-tuning-for-carbon-stock-baselines/).
 
 Chunked I/O matters at scale: read SAR scenes windowed to the LiDAR tile footprint rather than whole-scene, and stream NetCDF stacks lazily through `xarray` so memory stays bounded across thousands of tiles. With this contract in place, every fused biomass surface is traceable from raw return to issued credit.
+
+## Frequently Asked Questions
+
+### Should LiDAR footprints be paired with a single SAR pixel or an aggregate?
+
+An overlap-weighted aggregate, almost always. Footprint geolocation uncertainty and SAR pixel size are both of order ten metres, so a footprint typically straddles several pixels and pairing it with the nearest one mixes in structure the LiDAR never observed. Weighting the surrounding pixels by their overlap with the footprint gives a paired value that corresponds to what was actually measured, and it degrades gracefully as geolocation uncertainty grows.
+
+### How do I detect a systematic geolocation offset between the two sensors?
+
+Cross-correlate a derived surface from each — canopy height from LiDAR against a smoothed backscatter field — over an area with strong structural contrast, and look for the shift that maximises agreement. A consistent non-zero shift is a coregistration offset and must be corrected before fitting; a shift that varies across the scene usually points to a terrain or orbit-geometry problem rather than a simple translation. Record the applied shift, because it changes every subsequent estimate.
+
+### What model form works best for the fused relationship?
+
+Something monotonic and saturating, matching the physics — a power law or an asymptotic form rather than an unconstrained flexible learner. A model with enough freedom will fit the calibration scatter beautifully and extrapolate absurdly above the saturation ceiling, where most of the interesting biomass sits and where calibration data is thinnest. Constraining the form is what keeps the extrapolation defensible.
+
+### How many LiDAR footprints are needed to calibrate a SAR model?
+
+Enough to cover the biomass range including its upper end, which is a coverage question rather than a count. A thousand footprints concentrated in low-biomass stands calibrate the part of the curve that was never in doubt; a few hundred spanning the full range, including mature stands near saturation, are worth far more. Stratify the calibration sample by expected biomass before acquisition rather than sampling uniformly.
+
+### Can the fused model be transferred to another site?
+
+Only with local validation, and usually not without recalibration. The backscatter-to-biomass relationship depends on forest structure, species composition, moisture regime, and terrain, all of which vary between sites. Transferring a fitted model unchanged is a common shortcut and a reliable source of bias; transferring the model *form* and refitting its coefficients locally is legitimate and far cheaper than starting over.
 
 ## Related
 

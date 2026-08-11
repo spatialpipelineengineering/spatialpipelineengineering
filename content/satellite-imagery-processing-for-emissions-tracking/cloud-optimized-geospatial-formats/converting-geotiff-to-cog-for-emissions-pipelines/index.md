@@ -278,6 +278,42 @@ def convert_to_cog(
 
 Two guards in this routine catch the failures that QA otherwise misses. The CRS check refuses an untagged source outright, because a COG published without a datum relocates every parcel it feeds. The overview assertion after translation catches the case where `cog_translate` succeeds but writes an empty pyramid — a file that validates structurally yet still forces full-resolution reads on every zoomed-out request.
 
+<svg viewBox="0 -4 880 230" role="img" aria-labelledby="conv-t conv-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="conv-t">Conversion decisions that silently change pixel values</title>
+  <desc id="conv-d">Four conversion settings and their effect on the data. Block size affects read efficiency only and never changes a value. Compression is lossless for Deflate, LZW and ZSTD and never changes a value, but is lossy for JPEG and does. Overview resampling never changes full-resolution values but averaging a categorical layer produces meaningless overview classes. Data-type conversion, such as scaling float reflectance into an integer with a scale factor, changes values by the quantisation step and silently discards the nodata distinction if the sentinel is not carried across. A panel marks the two settings that alter the analysis path and notes that both are common defaults in conversion recipes copied from a display-oriented workflow.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Two of these change the numbers</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Both are defaults in recipes written for display products.</text>
+    <rect x="12" y="52" width="212" height="140" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="12" y="52" width="212" height="140" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="28" y="76" fill="currentColor" font-size="10.5" font-weight="700">Block size</text>
+    <text x="28" y="102" fill="currentColor" font-size="9.5" opacity="0.85">512 vs 256 vs 1024</text>
+    <text x="28" y="128" fill="currentColor" font-size="9.5" font-weight="700">never changes a value</text>
+    <text x="28" y="154" fill="currentColor" font-size="9" opacity="0.75">match it to the reader's</text>
+    <text x="28" y="170" fill="currentColor" font-size="9" opacity="0.75">window and chunk size</text>
+    <rect x="236" y="52" width="212" height="140" rx="9" fill="none" stroke="#f3a712" stroke-width="1.9" stroke-dasharray="6,3"/>
+    <text x="252" y="76" fill="currentColor" font-size="10.5" font-weight="700">Compression</text>
+    <text x="252" y="102" fill="currentColor" font-size="9.5" opacity="0.85">Deflate · LZW · ZSTD: lossless</text>
+    <text x="252" y="128" fill="#f3a712" font-size="9.5" font-weight="700">JPEG: changes every pixel</text>
+    <text x="252" y="154" fill="currentColor" font-size="9" opacity="0.75">indices shift, detected</text>
+    <text x="252" y="170" fill="currentColor" font-size="9" opacity="0.75">area shifts with them</text>
+    <rect x="460" y="52" width="212" height="140" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="460" y="52" width="212" height="140" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="476" y="76" fill="currentColor" font-size="10.5" font-weight="700">Overview resampling</text>
+    <text x="476" y="102" fill="currentColor" font-size="9.5" opacity="0.85">full resolution untouched</text>
+    <text x="476" y="128" fill="currentColor" font-size="9.5" font-weight="700">but average on a class map</text>
+    <text x="476" y="154" fill="currentColor" font-size="9" opacity="0.75">produces classes that do</text>
+    <text x="476" y="170" fill="currentColor" font-size="9" opacity="0.75">not exist — use mode</text>
+    <rect x="684" y="52" width="184" height="140" rx="9" fill="none" stroke="#f3a712" stroke-width="1.9" stroke-dasharray="6,3"/>
+    <text x="700" y="76" fill="currentColor" font-size="10.5" font-weight="700">Data type</text>
+    <text x="700" y="102" fill="currentColor" font-size="9.5" opacity="0.85">float → scaled int</text>
+    <text x="700" y="128" fill="#f3a712" font-size="9.5" font-weight="700">quantises every value</text>
+    <text x="700" y="154" fill="currentColor" font-size="9" opacity="0.75">and drops nodata unless</text>
+    <text x="700" y="170" fill="currentColor" font-size="9" opacity="0.75">the sentinel is carried</text>
+    <text x="12" y="216" fill="currentColor" font-size="9.5" opacity="0.82">Assert a checksum over a sample of pixels before and after conversion — it is the only check that catches all four at once.</text>
+  </g>
+</svg>
+
 ## Compliance Gating & Audit Trail Generation
 
 The manifest returned by the conversion is the audit record. Every field an auditor would ask about — the CRS carried forward from the source, the nodata value, the block size, the exact overview decimation levels, the compression and predictor, and the resampling method — is captured at the moment of writing and travels with the artifact. Because the function raises on a failed `cog_validate` or an empty overview list, an invalid COG can never be published; the gate is structural, not advisory.
@@ -302,6 +338,65 @@ Deploy the conversion inside the tile-processing framework, following a fixed in
 6. **Submit.** Register the manifest with the lineage store and hand the COG to the [Sentinel-2 and Landsat cloud masking workflows](https://www.spatialpipelineengineering.org/satellite-imagery-processing-for-emissions-tracking/sentinel-2-landsat-cloud-masking-workflows/) and the compositing stages that consume it as verified activity data.
 
 Run the conversions as a fan-out across a `dask.distributed` pool, one task per source raster, and align the conversion `blocksize` with the reader's chunk size so the block/chunk mismatch the diagnostic warns about never reaches production. By pinning tiling, choosing resampling by data type, preserving nodata and CRS, and gating on `cog_validate`, the conversion turns an unstreamable striped GeoTIFF into a self-describing, auditable COG — the storage primitive every scalable emissions pipeline is built on.
+
+<svg viewBox="0 -4 880 206" role="img" aria-labelledby="val-t val-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="val-t">Post-conversion checks, in the order that catches the most for the least work</title>
+  <desc id="val-d">Four validation steps ordered by cost. First, a structural validator confirms internal tiling, overview presence and header placement, and costs one small read. Second, a pixel checksum over the full raster confirms no value changed, and costs one full read. Third, a metadata comparison confirms the coordinate reference system, transform, nodata sentinel and band descriptions survived, and costs almost nothing. Fourth, a read-pattern benchmark confirms that a windowed read fetches the expected number of bytes, and costs a handful of requests. A panel notes that the third check is the cheapest and the most frequently skipped, and that a lost nodata sentinel is the most damaging of the four failures.</desc>
+  <defs>
+    <marker id="val-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+    </marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" text-anchor="middle">
+    <text x="440" y="16" fill="currentColor" font-size="11.5" font-weight="700">Four checks; the cheapest is the one people skip</text>
+    <rect x="12" y="44" width="200" height="94" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="12" y="44" width="200" height="94" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="112" y="68" fill="currentColor" font-size="10" font-weight="700">1 · Structure</text>
+    <text x="112" y="90" fill="currentColor" font-size="9" opacity="0.85">tiled · overviews · header</text>
+    <text x="112" y="112" fill="currentColor" font-size="9" opacity="0.75">one small read</text>
+    <rect x="228" y="44" width="200" height="94" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="228" y="44" width="200" height="94" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="328" y="68" fill="currentColor" font-size="10" font-weight="700">2 · Pixel checksum</text>
+    <text x="328" y="90" fill="currentColor" font-size="9" opacity="0.85">no value changed</text>
+    <text x="328" y="112" fill="currentColor" font-size="9" opacity="0.75">one full read</text>
+    <rect x="444" y="44" width="200" height="94" rx="9" fill="currentColor" opacity="0.13"/>
+    <rect x="444" y="44" width="200" height="94" rx="9" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <text x="544" y="68" fill="currentColor" font-size="10" font-weight="700">3 · Metadata</text>
+    <text x="544" y="90" fill="currentColor" font-size="9" opacity="0.85">CRS · transform · nodata · bands</text>
+    <text x="544" y="112" fill="#f3a712" font-size="9" font-weight="700">nearly free, most skipped</text>
+    <rect x="660" y="44" width="208" height="94" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="660" y="44" width="208" height="94" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="764" y="68" fill="currentColor" font-size="10" font-weight="700">4 · Read pattern</text>
+    <text x="764" y="90" fill="currentColor" font-size="9" opacity="0.85">window fetches expected bytes</text>
+    <text x="764" y="112" fill="currentColor" font-size="9" opacity="0.75">a handful of requests</text>
+    <text x="440" y="176" fill="currentColor" font-size="9.5" opacity="0.85">A lost nodata sentinel is the most damaging of the four failures, and check three is the only one that finds it.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1.4" fill="none" marker-end="url(#val-arrow)">
+    <line x1="212" y1="91" x2="226" y2="91"/><line x1="428" y1="91" x2="442" y2="91"/><line x1="644" y1="91" x2="658" y2="91"/>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### Does converting to COG change the data?
+
+It should not, and the conversion must be checked rather than assumed. Re-tiling and lossless compression preserve every value; a lossy codec, a data-type change, or an unpropagated nodata sentinel do not. The cheap guarantee is a checksum over the pixel values — computed on the source, recomputed on the output, and asserted equal. That single check catches every value-changing setting at once and belongs in the conversion task rather than in a manual review.
+
+### What block size should I write?
+
+Match the reader. If downstream chunks are 512 pixels square, writing 512-pixel blocks means each chunk read is a whole number of blocks; writing 256 means four reads per chunk, and writing 1024 means fetching four times the needed data. Where several consumers disagree, favour the one doing the heavy time-series work, since it issues by far the most requests.
+
+### How many overview levels are needed?
+
+Enough that the coarsest level fits comfortably in a single read — typically halving until the smallest level is a few hundred pixels on a side, which is five or six levels for a Sentinel-2 scene. Fewer levels means zoomed-out reads pull far more data than needed; many more adds file size for levels nobody requests. Build them internally, not as sidecar files, or they will be lost the first time the file is copied.
+
+### Should conversion happen at ingestion or on demand?
+
+At ingestion, once, into the curated zone. On-demand conversion re-does the same work for every consumer and, worse, makes the bytes a consumer reads depend on when they read them. Converting once at ingestion gives a stable, content-addressable artefact that the provenance record can point at, which is what makes an as-of replay possible.
+
+### What about very large scenes that exceed a single file comfortably?
+
+Keep the scene whole if the tooling can handle it and rely on internal tiling for access, rather than splitting into many small files. Splitting introduces an edge problem — operations near the split boundary need neighbouring files — and multiplies request counts. Where a split is genuinely necessary, align it to the analysis tile grid so a downstream task reads exactly one file, and record the grid definition alongside the data.
 
 ## Related guides
 

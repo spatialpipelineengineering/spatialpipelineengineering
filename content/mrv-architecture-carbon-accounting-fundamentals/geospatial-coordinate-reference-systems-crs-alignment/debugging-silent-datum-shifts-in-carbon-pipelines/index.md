@@ -14,7 +14,7 @@ A datum shift is the most dangerous class of coordinate error in a carbon MRV st
 
 The failure is not that coordinates are missing a CRS — that raises loudly and gets fixed on day one. The failure is that a geometry carries a plausible but incorrect datum, or that PROJ quietly substitutes a ballpark transform when the proper NTv2 or NADCON grid is absent, and the parcel lands one to tens of metres from where it belongs. At that magnitude a boundary crosses a stratum edge, a pixel of high-biomass forest is credited to a low-biomass class, and the error propagates untouched into the lineage record that [MRV data lineage and provenance tracking](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/mrv-data-lineage-provenance-tracking/) will later attest as correct. Detection has to be deliberate, because nothing in the happy path will surface it.
 
-<svg viewBox="0 0 1000 300" role="img" aria-labelledby="datum-dbg-t datum-dbg-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+<svg viewBox="-2 74 1004 232" role="img" aria-labelledby="datum-dbg-t datum-dbg-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
   <title id="datum-dbg-t">Decision tree for detecting a silent datum shift</title>
   <desc id="datum-dbg-d">Geometry that looks aligned enters a four-check diagnostic. First, is the CRS authority and datum ensemble explicit? If not, it is flagged as a datum-shift risk. Next, is the exact NTv2 or NADCON grid available to pyproj? If not, only a ballpark transform exists and the geometry is flagged. Then measured displacement between two datum realizations is compared against a tolerance gate. Displacement under tolerance passes to a verified-datum output; displacement over tolerance is flagged as a datum shift. The verified-datum output is drawn in amber.</desc>
   <defs>
@@ -198,6 +198,29 @@ def diagnose_datum_shift(
 
 Two signals matter most. `grid_missing` (derived from `TransformerGroup.unavailable_operations`) tells you PROJ knew a better transform existed but could not load its grid — the container-provisioning failure. `max_displacement_m` quantifies how far the geometry actually moves between the permissive default and the `only_best=True` strict transform; when the default has silently fallen back to a ballpark, this gap *is* the datum shift, measured in metres.
 
+<svg viewBox="0 -4 880 226" role="img" aria-labelledby="ds-t ds-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="ds-t">Datum shift magnitude by legacy datum, and the parcel area it misallocates</title>
+  <desc id="ds-d">A bar chart of typical horizontal displacement when a legacy datum is treated as a modern global frame without a transformation grid. NAD27 shows up to 200 metres in the western United States, ED50 shows up to 130 metres across Europe, AGD66 shows up to 200 metres in Australia, and an ITRF realisation mismatch shows under 2 metres. Beside each bar, the misallocated area for a 50 hectare square parcel is given: 13.6 hectares, 9.0 hectares, 13.6 hectares, and 0.14 hectares respectively. A note states that the last case is the dangerous one, because a two metre shift is small enough to pass a visual check and large enough to move a boundary across a fence line.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">The small shift is the dangerous one</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Horizontal displacement when a legacy datum is treated as a modern frame, and what it costs a 50 ha parcel.</text>
+  </g>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="72" fill="currentColor" font-size="10" font-weight="700">NAD27 · western US</text>
+    <rect x="196" y="56" width="420" height="22" rx="4" fill="currentColor" opacity="0.28"/>
+    <text x="626" y="72" fill="currentColor" font-size="9.5" font-weight="700">≤ 200 m → 13.6 ha misallocated</text>
+    <text x="12" y="112" fill="currentColor" font-size="10" font-weight="700">ED50 · Europe</text>
+    <rect x="196" y="96" width="273" height="22" rx="4" fill="currentColor" opacity="0.24"/>
+    <text x="479" y="112" fill="currentColor" font-size="9.5" font-weight="700">≤ 130 m → 9.0 ha</text>
+    <text x="12" y="152" fill="currentColor" font-size="10" font-weight="700">AGD66 · Australia</text>
+    <rect x="196" y="136" width="420" height="22" rx="4" fill="currentColor" opacity="0.28"/>
+    <text x="626" y="152" fill="currentColor" font-size="9.5" font-weight="700">≤ 200 m → 13.6 ha</text>
+    <text x="12" y="192" fill="currentColor" font-size="10" font-weight="700">ITRF realisation mismatch</text>
+    <rect x="196" y="176" width="10" height="22" rx="3" fill="#f3a712"/>
+    <text x="216" y="192" fill="#f3a712" font-size="9.5" font-weight="700">&lt; 2 m → 0.14 ha — passes every visual check, still moves a boundary across a fence</text>
+  </g>
+</svg>
+
 ## Deterministic Transformation Logic
 
 Once the diagnostic has confirmed the environment can supply an accurate transform, the transformation step enforces it. It resolves the source ensemble to a specific realization, constructs a transformer with `only_best=True` so PROJ raises rather than substituting a ballpark, re-measures displacement against the pre-transform vertices, and asserts the maximum is under tolerance before returning. There is no path by which a coarse transform reaches the credited-area calculation.
@@ -298,6 +321,59 @@ Wire the diagnostic and the gated transform into the pipeline in a fixed ingest 
 6. **Submit.** Forward only verified geometry to credited-area accounting, and hand the lineage record to registry submission.
 
 Provision the PROJ data directory as a first-class dependency of the container image, not an afterthought — pin the NTv2/NADCON grids you rely on and assert their presence at start-up, because the whole class of silent shift is ultimately an environment-provisioning failure that masquerades as a data-quality one. With the diagnostic measuring displacement before area is ever computed and the transform failing closed when the accurate grid is absent, a datum shift stops being a silent metres-scale corruption of credited area and becomes a logged, quarantined, auditable event.
+
+<svg viewBox="0 -4 880 222" role="img" aria-labelledby="tri-t tri-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="tri-t">Three independent signals that a datum shift has occurred</title>
+  <desc id="tri-d">Three diagnostic panels. The first, control-point residual, compares transformed coordinates for surveyed monuments against their published values; a systematic offset in a consistent direction indicates a datum problem rather than random error. The second, boundary-versus-basemap alignment, overlays the transformed boundary on high-resolution imagery and looks for a consistent offset along shared features such as roads and field edges. The third, area invariant, compares total project area against the previous run in an equal-area projection; a step change with no boundary edit is decisive. A note states that any one signal alone can mislead but that agreement across two of the three is conclusive.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Three signals, and why you want two of them</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Each can be fooled alone. Agreement between any two is decisive.</text>
+    <rect x="12" y="52" width="280" height="122" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="12" y="52" width="280" height="122" rx="9" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <text x="28" y="76" fill="currentColor" font-size="10.5" font-weight="700">1 · Control-point residual</text>
+    <text x="28" y="100" fill="currentColor" font-size="9.5" opacity="0.85">transform surveyed monuments,</text>
+    <text x="28" y="116" fill="currentColor" font-size="9.5" opacity="0.85">compare to published values</text>
+    <text x="28" y="142" fill="currentColor" font-size="9.5" font-weight="700">systematic direction ⇒ datum</text>
+    <text x="28" y="160" fill="currentColor" font-size="9" opacity="0.72">random scatter ⇒ measurement noise</text>
+    <rect x="300" y="52" width="280" height="122" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="300" y="52" width="280" height="122" rx="9" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <text x="316" y="76" fill="currentColor" font-size="10.5" font-weight="700">2 · Basemap alignment</text>
+    <text x="316" y="100" fill="currentColor" font-size="9.5" opacity="0.85">overlay on high-resolution imagery,</text>
+    <text x="316" y="116" fill="currentColor" font-size="9.5" opacity="0.85">inspect roads and field edges</text>
+    <text x="316" y="142" fill="currentColor" font-size="9.5" font-weight="700">consistent offset ⇒ datum</text>
+    <text x="316" y="160" fill="currentColor" font-size="9" opacity="0.72">beware: the basemap has a datum too</text>
+    <rect x="588" y="52" width="280" height="122" rx="9" fill="currentColor" opacity="0.12"/>
+    <rect x="588" y="52" width="280" height="122" rx="9" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <text x="604" y="76" fill="currentColor" font-size="10.5" font-weight="700">3 · Area invariant</text>
+    <text x="604" y="100" fill="currentColor" font-size="9.5" opacity="0.85">total area against the previous run,</text>
+    <text x="604" y="116" fill="currentColor" font-size="9.5" opacity="0.85">computed in an equal-area CRS</text>
+    <text x="604" y="142" fill="#f3a712" font-size="9.5" font-weight="700">step with no boundary edit ⇒ decisive</text>
+    <text x="604" y="160" fill="currentColor" font-size="9" opacity="0.72">and it runs automatically, every time</text>
+    <text x="12" y="206" fill="currentColor" font-size="9.5" opacity="0.82">Only the third is free and continuous. Make it an invariant, and use the other two to explain what it caught.</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### How do I tell a datum shift from ordinary georegistration error?
+
+By its structure. Georegistration error is roughly random in direction and varies between scenes; a datum shift is systematic, points in a consistent direction, and is stable across every dataset processed through the same transformation. Compute the residual vectors for several control points and look at their bearings: clustered bearings mean a datum problem, scattered ones mean noise. The distinction matters because the fixes are completely different — a datum problem is fixed once, in configuration, while registration error is fixed per acquisition.
+
+### Can a datum shift be corrected after the fact?
+
+Only if you know the source datum, which is exactly what is usually missing. Where the source datum is known and a grid exists, re-running from the authoritative source with the correct transformation is straightforward and produces a clean restatement. Where the source datum was never recorded, you are reverse-engineering it from residuals against control points — possible, but the result is an estimate that must be disclosed as such. This asymmetry is the argument for rejecting untagged data at ingestion rather than accepting it and hoping.
+
+### Why does the area invariant catch a datum shift at all, if a shift is a translation?
+
+Because real transformations are not pure translations. Datum transformations combine rotation, scale, and a spatially varying grid correction, so a boundary's shape changes slightly as well as its position — and the area computed in an equal-area projection changes with it. The magnitude is small, typically fractions of a percent, which is why the invariant threshold is set at half a percent rather than at zero: below that, ordinary geometry handling produces noise, and above it something structural has changed.
+
+### What should happen when a shift is detected in already-published figures?
+
+Treat it as a restatement rather than a bug fix. Compute the corrected figure, quantify the difference, and follow the disclosure path for a restated number, including the cause and the control that now prevents recurrence. Silently republishing a corrected total is worse than the original error, because it removes a verifier's ability to reconcile the two — and a discrepancy discovered by an auditor rather than disclosed by you is a materially different conversation.
+
+### Are transformation grids stable enough to pin?
+
+They are versioned artefacts and they do change, which is precisely why they must be pinned. National geodetic agencies publish updated grids as survey data improves, and adopting a new grid changes every coordinate by a small amount — a legitimate improvement that is also a restatement if it lands mid-period. Pin the grid package version alongside the code and container, upgrade deliberately at a period boundary, and record the change in lineage like any other parameter revision.
 
 ## Related guides
 

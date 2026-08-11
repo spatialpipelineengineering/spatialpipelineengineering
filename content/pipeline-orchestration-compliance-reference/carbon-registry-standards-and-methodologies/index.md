@@ -106,6 +106,48 @@ Three failure modes recur across production conformance stages. Each stems from 
 
 3. **Uncertainty deduction not applied, leading to over-crediting.** Every major methodology converts estimation uncertainty into a conservative deduction: once the relative confidence interval of the net estimate exceeds a tolerance, a proportional reduction is subtracted before issuance. A pipeline that computes and stores an uncertainty surface but never wires it into the tonnage calculation issues the full point estimate as if it were certain. The root cause is an organisational seam — the modeling team produces the uncertainty layer, the accounting stage consumes only the mean. Observed impact: on projects where the net-estimate CI sits in the 15–30% range, skipping the deduction over-credits by the entire deduction fraction, which is both the largest single over-issuance risk and the easiest for a third party to recompute and challenge from the published rasters.
 
+<svg viewBox="0 -4 900 228" role="img" aria-labelledby="std-t std-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="std-t">Where methodology requirements bind, from geometry to disclosure</title>
+  <desc id="std-d">Four binding points across the pipeline, each annotated with what a methodology constrains there. At geometry, methodologies constrain the minimum mapping unit, the boundary accuracy, and the permitted projection family. At measurement, they constrain sensor eligibility, revisit frequency, and the allowed model classes. At uncertainty, they constrain how error is propagated and what conservativeness deduction applies. At disclosure, they constrain the aggregation boundary, the restatement rules, and the evidence package contents. A panel notes that engineers usually encode the first two and are surprised by the last two, because uncertainty and disclosure constraints change the number rather than the method.</desc>
+  <defs>
+    <marker id="std-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+    </marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" text-anchor="middle">
+    <text x="450" y="16" fill="currentColor" font-size="11.5" font-weight="700">Methodologies bind at four points, not one</text>
+    <rect x="12" y="46" width="200" height="96" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="12" y="46" width="200" height="96" rx="9" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <text x="112" y="70" fill="currentColor" font-size="10.5" font-weight="700">Geometry</text>
+    <text x="112" y="92" fill="currentColor" font-size="9" opacity="0.85">minimum mapping unit</text>
+    <text x="112" y="108" fill="currentColor" font-size="9" opacity="0.85">boundary accuracy</text>
+    <text x="112" y="124" fill="currentColor" font-size="9" opacity="0.85">permitted projections</text>
+    <rect x="232" y="46" width="200" height="96" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="232" y="46" width="200" height="96" rx="9" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <text x="332" y="70" fill="currentColor" font-size="10.5" font-weight="700">Measurement</text>
+    <text x="332" y="92" fill="currentColor" font-size="9" opacity="0.85">eligible sensors</text>
+    <text x="332" y="108" fill="currentColor" font-size="9" opacity="0.85">revisit frequency</text>
+    <text x="332" y="124" fill="currentColor" font-size="9" opacity="0.85">allowed model classes</text>
+    <rect x="452" y="46" width="200" height="96" rx="9" fill="currentColor" opacity="0.13"/>
+    <rect x="452" y="46" width="200" height="96" rx="9" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <text x="552" y="70" fill="currentColor" font-size="10.5" font-weight="700">Uncertainty</text>
+    <text x="552" y="92" fill="currentColor" font-size="9" opacity="0.85">propagation method</text>
+    <text x="552" y="108" fill="currentColor" font-size="9" opacity="0.85">conservativeness deduction</text>
+    <text x="552" y="124" fill="#f3a712" font-size="9" font-weight="700">changes the number</text>
+    <rect x="672" y="46" width="216" height="96" rx="9" fill="currentColor" opacity="0.13"/>
+    <rect x="672" y="46" width="216" height="96" rx="9" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <text x="780" y="70" fill="currentColor" font-size="10.5" font-weight="700">Disclosure</text>
+    <text x="780" y="92" fill="currentColor" font-size="9" opacity="0.85">aggregation boundary</text>
+    <text x="780" y="108" fill="currentColor" font-size="9" opacity="0.85">restatement rules</text>
+    <text x="780" y="124" fill="#f3a712" font-size="9" font-weight="700">changes the number</text>
+    <text x="450" y="186" fill="currentColor" font-size="9.5" opacity="0.85">Engineers encode the first two and are surprised by the last two — which is where most late-stage rework comes from.</text>
+    <text x="450" y="208" fill="currentColor" font-size="9.5" font-weight="700">Read the methodology's uncertainty and disclosure clauses before designing the schema, not after.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1.4" fill="none" marker-end="url(#std-arrow)">
+    <line x1="212" y1="94" x2="230" y2="94"/><line x1="432" y1="94" x2="450" y2="94"/><line x1="652" y1="94" x2="670" y2="94"/>
+  </g>
+</svg>
+
 ## Deterministic Implementation Architecture
 
 The conformance stage is best expressed as a pure function over a project `GeoDataFrame` and a versioned methodology ruleset. It must reject untagged geometry, refuse to measure area on anything but an equal-area or projected CRS, enforce the minimum mapping unit, confirm the buffer-pool contribution meets the methodology floor, and confirm the uncertainty deduction has actually been applied. Breaches that corrupt the crediting calculation raise; softer concerns are flagged and carried into the evidence package. The implementation below uses `geopandas` and `pyproj` for explicit CRS handling and `structlog` for audit-ready JSON telemetry, and it returns a structured conformance record rather than a bare boolean, so the outcome is itself a lineage artifact.
@@ -295,6 +337,68 @@ Debugging conformance failures is mostly a matter of trusting the structured tel
 A subtle class of failure worth building explicit tests for is the interaction between gates rather than any single gate in isolation. Reprojecting to an equal-area CRS to satisfy the area basis will, on a fragmented landscape, shift the measured size of the smallest strata just enough to move a handful across the minimum-mapping-unit threshold, so the order of operations — reproject first, then apply the minimum mapping unit, then dissolve — has to be fixed and tested, or two runs on identical inputs can disagree on credited area purely because of gate ordering. Likewise, the uncertainty deduction must be computed on the *net* estimate after the leakage belt has been subtracted, not on gross removals, because deducting uncertainty from a gross figure and then subtracting leakage double-discounts the same tonnes. Encoding these dependencies as an explicit sequence, and asserting them in a regression suite that compares each release against a certified baseline project, is what keeps the conformance stage deterministic across refactors.
 
 The evidence package is the stage's final deliverable and the artifact a verifier actually opens. It bundles the conformance result, the projection metadata that proves the area basis, the buffer-pool and uncertainty-deduction records that justify the net figure, and the content hashes that link every input raster and vector to this run. Because it is generated deterministically from the same ruleset that gated the data, the package cannot drift out of sync with the numbers it certifies — the deduction an auditor recomputes from the published rasters will match the deduction recorded in the package, or the run never passed the gate in the first place.
+
+<svg viewBox="0 -4 880 222" role="img" aria-labelledby="ver-t ver-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="ver-t">Methodology versioning against project crediting periods</title>
+  <desc id="ver-d">A timeline from 2024 to 2034 showing a project's crediting period alongside three methodology versions. The project validates under methodology version 1.2 in 2025. Version 1.3 is published in 2027 and version 2.0 in 2030. The project continues to report under 1.2 for its crediting period, with an optional transition point at the second verification. A panel explains that the pipeline must therefore be able to execute an older methodology version indefinitely, which makes methodology rules data rather than code, and that a codebase encoding only the current rules cannot serve a portfolio spanning three versions.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">A portfolio runs several methodology versions at once</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Projects stay on the version they validated under. Your code must too.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1.2">
+    <line x1="90" y1="176" x2="700" y2="176" opacity="0.5"/>
+  </g>
+  <g font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.72">
+    <text x="90" y="196" text-anchor="middle">2024</text>
+    <text x="212" y="196" text-anchor="middle">2026</text>
+    <text x="334" y="196" text-anchor="middle">2028</text>
+    <text x="456" y="196" text-anchor="middle">2030</text>
+    <text x="700" y="196" text-anchor="middle">2034</text>
+  </g>
+  <rect x="151" y="60" width="549" height="30" rx="6" fill="currentColor" opacity="0.2"/>
+  <text x="164" y="80" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">project crediting period · reports under methodology v1.2 throughout</text>
+  <g>
+    <line x1="151" y1="100" x2="151" y2="170" stroke="currentColor" stroke-width="1.6" stroke-dasharray="4,3"/>
+    <text x="156" y="116" font-family="system-ui, sans-serif" font-size="9" font-weight="700" fill="currentColor">v1.2 validated</text>
+    <line x1="273" y1="120" x2="273" y2="170" stroke="#f3a712" stroke-width="1.6" stroke-dasharray="4,3"/>
+    <text x="278" y="136" font-family="system-ui, sans-serif" font-size="9" font-weight="700" fill="#f3a712">v1.3 published</text>
+    <line x1="456" y1="120" x2="456" y2="170" stroke="#f3a712" stroke-width="1.6" stroke-dasharray="4,3"/>
+    <text x="461" y="136" font-family="system-ui, sans-serif" font-size="9" font-weight="700" fill="#f3a712">v2.0 published</text>
+    <circle cx="395" cy="176" r="6" fill="none" stroke="currentColor" stroke-width="2"/>
+    <text x="342" y="212" font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.8">optional transition at verification</text>
+  </g>
+  <g font-family="system-ui, sans-serif">
+    <rect x="716" y="56" width="152" height="112" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="716" y="56" width="152" height="112" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="730" y="80" fill="currentColor" font-size="9.5" font-weight="700">Consequence</text>
+    <text x="730" y="102" fill="currentColor" font-size="9" opacity="0.85">Methodology rules are</text>
+    <text x="730" y="116" fill="currentColor" font-size="9" opacity="0.85">DATA, versioned and</text>
+    <text x="730" y="130" fill="currentColor" font-size="9" opacity="0.85">selectable per project.</text>
+    <text x="730" y="152" fill="#f3a712" font-size="9" font-weight="700">Not branches in code.</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### Should methodology rules live in code or in data?
+
+In data, selected per project by version. A portfolio inevitably spans several methodology versions at once, because projects stay on the version they validated under while new versions are published, and encoding the current rules in code forces either a branch per version or a fleet of forks. Representing thresholds, deduction schedules, eligible sensors, and boundary rules as a versioned rule set makes running three versions concurrently a configuration matter rather than a release-engineering problem.
+
+### How do I keep up with methodology revisions?
+
+Treat a revision like a dependency upgrade: read the change, assess which projects it affects, decide whether and when to transition each, and record the decision. Most revisions are optional for existing projects until their next crediting period, so the urgent work is usually assessment rather than adoption. What is not optional is knowing which of your projects a revision touches, which requires the methodology version to be an attribute of the project record rather than an assumption.
+
+### What varies most between registries in engineering terms?
+
+Geometry requirements and uncertainty treatment. Minimum mapping units, boundary accuracy expectations, and the permitted projection family differ enough that a pipeline built for one standard will produce non-compliant outputs for another. Uncertainty is the larger surprise: the propagation method and the deduction schedule differ, and because they change the reported number rather than the method, they cannot be bolted on at submission time.
+
+### Can one pipeline serve multiple registries?
+
+Yes, if the standard-specific rules are parameters rather than assumptions. Share ingestion, harmonisation, and measurement; parameterise the minimum mapping unit, the projection constraint, the uncertainty method, and the evidence package. What does not share well is the submission format, which is genuinely registry-specific and best isolated in a thin adapter that consumes the canonical record.
+
+### How should a methodology transition be recorded?
+
+As a restatement boundary. Moving a project from one methodology version to another changes the basis of its figures, so the transition date, the versions on either side, and the effect on the reported number all belong in the disclosure. Recomputing history under the new version without disclosure is the failure mode: it produces a series that looks continuous and is not.
 
 ## Conclusion
 

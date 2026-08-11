@@ -249,6 +249,39 @@ def tile_activity(context: AssetExecutionContext) -> None:
 
 The two are functionally equivalent, but the ergonomic difference is instructive. In Prefect you keep the deterministic key and idempotency logic in your own hands — flexible, and honest about what you are guaranteeing. In Dagster the partition *is* the key, the runtime records the materialisation, and the metadata you attach is lineage the moment it is written. An Airflow implementation would sit between them: a `PythonOperator` running the same body, idempotency entirely your responsibility, and lineage emitted through an OpenLineage integration configured alongside the DAG. All three write the same equal-area Parquet; they differ in how much audit infrastructure you get without building it.
 
+<svg viewBox="0 -4 900 234" role="img" aria-labelledby="cost-t cost-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="cost-t">What each orchestrator makes you build yourself for MRV</title>
+  <desc id="cost-d">Three columns listing the MRV-specific machinery each orchestrator leaves to the team. With Airflow you build idempotency helpers, a lineage integration, and data contracts, while inheriting mature backfill controls and a large provider catalogue. With Prefect you build lineage capture and data contracts, while inheriting runtime mapping and input-hash caching. With Dagster you build comparatively little, inheriting partitions, asset checks, typed IO and native lineage, but you take on a heavier conceptual model and a smaller integration set. A panel notes that the correct comparison is not features but which column of remaining work your team can actually sustain for a decade.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Compare the work you keep, not the features you get</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Everything below has to be built and maintained for the life of the crediting period.</text>
+    <rect x="12" y="52" width="284" height="152" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="12" y="52" width="284" height="152" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="28" y="76" fill="currentColor" font-size="11" font-weight="700">Airflow</text>
+    <text x="28" y="100" fill="#f3a712" font-size="9.5" font-weight="700">you build: idempotency helpers,</text>
+    <text x="28" y="116" fill="#f3a712" font-size="9.5" font-weight="700">lineage integration, data contracts</text>
+    <text x="28" y="142" fill="currentColor" font-size="9.5" opacity="0.85">you inherit: mature backfills,</text>
+    <text x="28" y="158" fill="currentColor" font-size="9.5" opacity="0.85">huge provider catalogue, ops depth</text>
+    <text x="28" y="184" fill="currentColor" font-size="9" opacity="0.72">best when operations dominate</text>
+    <rect x="308" y="52" width="284" height="152" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="308" y="52" width="284" height="152" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="324" y="76" fill="currentColor" font-size="11" font-weight="700">Prefect</text>
+    <text x="324" y="100" fill="#f3a712" font-size="9.5" font-weight="700">you build: lineage capture,</text>
+    <text x="324" y="116" fill="#f3a712" font-size="9.5" font-weight="700">data contracts</text>
+    <text x="324" y="142" fill="currentColor" font-size="9.5" opacity="0.85">you inherit: runtime mapping,</text>
+    <text x="324" y="158" fill="currentColor" font-size="9.5" opacity="0.85">input-hash caching, local runs</text>
+    <text x="324" y="184" fill="currentColor" font-size="9" opacity="0.72">best when fan-out dominates</text>
+    <rect x="604" y="52" width="284" height="152" rx="9" fill="currentColor" opacity="0.12"/>
+    <rect x="604" y="52" width="284" height="152" rx="9" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <text x="620" y="76" fill="currentColor" font-size="11" font-weight="700">Dagster</text>
+    <text x="620" y="100" fill="#f3a712" font-size="9.5" font-weight="700">you build: comparatively little</text>
+    <text x="620" y="126" fill="currentColor" font-size="9.5" opacity="0.85">you inherit: partitions, asset checks,</text>
+    <text x="620" y="142" fill="currentColor" font-size="9.5" opacity="0.85">typed IO, native lineage</text>
+    <text x="620" y="168" fill="currentColor" font-size="9.5" opacity="0.85">you take on: heavier model,</text>
+    <text x="620" y="184" fill="currentColor" font-size="9.5" opacity="0.85">smaller integration set</text>
+  </g>
+</svg>
+
 ## Compliance gating: lineage and audit evidence per orchestrator
 
 The audit question is always the same — can you reconstruct, for any reported figure, the exact inputs, code version, and transformations that produced it? The orchestrators answer it with different amounts of built-in support, and the difference decides how much bespoke lineage plumbing your team maintains.
@@ -277,6 +310,72 @@ The recommendation matrix by team profile:
 - **Team where audit lineage is the binding constraint and members are ready to model data assets and contracts:** choose **Dagster**. Software-defined assets, typed IO, and asset checks make the audit trace a runtime artifact rather than a reconstruction — the amber path in the diagram, chosen precisely because it ships audit-ready lineage.
 
 There is no universally correct orchestrator, but for a given MRV team there is a defensible one. Score the tools against dynamic fan-out, lineage, and idempotent replay; prototype a single tile-month backfill in the shortlist; and let the cleanest reproducible audit trail — not the prettiest UI — decide.
+
+<svg viewBox="0 -4 880 226" role="img" aria-labelledby="proto-t proto-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="proto-t">The one-week prototype that settles the choice</title>
+  <desc id="proto-d">A five-step evaluation running the same tile-month task in each shortlisted orchestrator. Step one, implement one idempotent task. Step two, fan out over a thousand tiles with a cardinality that changes between runs. Step three, replay a historical window and compare output digests against the first run. Step four, kill a worker mid-run and recover. Step five, produce the audit evidence a verifier would ask for and count how much of it the tool produced unaided. A panel notes that step five is the discriminating one, that steps two to four rarely separate the candidates, and that a week of prototyping is cheap against a decade of maintenance.</desc>
+  <defs>
+    <marker id="proto-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+    </marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" text-anchor="middle">
+    <text x="440" y="16" fill="currentColor" font-size="11.5" font-weight="700">Prototype for a week; you will maintain the answer for a decade</text>
+    <rect x="12" y="52" width="160" height="76" rx="8" fill="currentColor" opacity="0.07"/>
+    <rect x="12" y="52" width="160" height="76" rx="8" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="92" y="76" fill="currentColor" font-size="9.5" font-weight="700">1 · one idempotent</text>
+    <text x="92" y="92" fill="currentColor" font-size="9.5" font-weight="700">tile-month task</text>
+    <text x="92" y="114" fill="currentColor" font-size="9" opacity="0.75">the unit of everything</text>
+    <rect x="188" y="52" width="160" height="76" rx="8" fill="currentColor" opacity="0.07"/>
+    <rect x="188" y="52" width="160" height="76" rx="8" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="268" y="76" fill="currentColor" font-size="9.5" font-weight="700">2 · fan out over 1 000</text>
+    <text x="268" y="92" fill="currentColor" font-size="9.5" font-weight="700">with varying cardinality</text>
+    <text x="268" y="114" fill="currentColor" font-size="9" opacity="0.75">rarely separates them</text>
+    <rect x="364" y="52" width="160" height="76" rx="8" fill="currentColor" opacity="0.07"/>
+    <rect x="364" y="52" width="160" height="76" rx="8" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="444" y="76" fill="currentColor" font-size="9.5" font-weight="700">3 · replay, compare</text>
+    <text x="444" y="92" fill="currentColor" font-size="9.5" font-weight="700">output digests</text>
+    <text x="444" y="114" fill="currentColor" font-size="9" opacity="0.75">must be byte-identical</text>
+    <rect x="540" y="52" width="160" height="76" rx="8" fill="currentColor" opacity="0.07"/>
+    <rect x="540" y="52" width="160" height="76" rx="8" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="620" y="76" fill="currentColor" font-size="9.5" font-weight="700">4 · kill a worker,</text>
+    <text x="620" y="92" fill="currentColor" font-size="9.5" font-weight="700">recover</text>
+    <text x="620" y="114" fill="currentColor" font-size="9" opacity="0.75">check for partial writes</text>
+    <rect x="716" y="52" width="152" height="76" rx="8" fill="currentColor" opacity="0.13"/>
+    <rect x="716" y="52" width="152" height="76" rx="8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <text x="792" y="76" fill="currentColor" font-size="9.5" font-weight="700">5 · produce the</text>
+    <text x="792" y="92" fill="currentColor" font-size="9.5" font-weight="700">audit evidence</text>
+    <text x="792" y="114" fill="#f3a712" font-size="9" font-weight="700">the discriminating step</text>
+    <text x="440" y="182" fill="currentColor" font-size="9.5" opacity="0.85">Count how much of the evidence package each tool produced without bespoke code. That number is the answer.</text>
+    <text x="440" y="204" fill="currentColor" font-size="9.5" opacity="0.85">Steps 2 to 4 usually tie; teams that stop there choose on taste and rebuild the evidence layer twice.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1.4" fill="none" marker-end="url(#proto-arrow)">
+    <line x1="172" y1="90" x2="186" y2="90"/><line x1="348" y1="90" x2="362" y2="90"/>
+    <line x1="524" y1="90" x2="538" y2="90"/><line x1="700" y1="90" x2="714" y2="90"/>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### Does the orchestrator choice really matter if the tasks are well written?
+
+Less than vendors suggest and more than engineers hope. Well-written tasks — idempotent, deterministically keyed, side-effect free — port between all three with modest effort, which is the argument for keeping business logic out of the orchestrator. What does not port is the evidence layer: lineage, asset metadata, and replay semantics differ enough that rebuilding them is a project. That is why the prototype should be scored on evidence rather than on ergonomics.
+
+### Can I migrate later if I choose wrong?
+
+Migrating the execution is feasible; migrating the history is not. Tasks move with modest rework, but the lineage and run metadata accumulated under the old tool generally stay there, and a crediting period that spans the migration then has its evidence split across two systems. If migration is plausible, keep the evidence record in your own store from the start — emitted from your code rather than read out of the orchestrator — and the migration becomes an operational change rather than a compliance one.
+
+### What about running more than one orchestrator?
+
+Common in practice and usually accidental — a legacy Airflow deployment plus a newer Prefect or Dagster footprint. It is survivable if both emit into one evidence store with consistent identifiers, and painful otherwise, because a verifier asking for a complete trace gets two partial answers. If you find yourself here, unify the evidence layer first and treat consolidating the schedulers as a separate, lower-priority project.
+
+### How much does managed hosting change the comparison?
+
+It changes the operational column substantially and the evidence column not at all. Managed control planes remove most of the reason Airflow's operational maturity was decisive, which shifts weight toward fan-out ergonomics and lineage. It also introduces a retention question: a managed service's run history is subject to its own retention policy, which will not match a decades-long audit horizon, reinforcing the case for owning the evidence record.
+
+### Which one would you start with today for a new MRV platform?
+
+If audit lineage is the binding constraint and the team can absorb the asset model, Dagster — because the evidence layer is the expensive thing to build and it is the one Dagster gives you. If the team is small and Python-first with heavy tile fan-out, Prefect, and plan to build the evidence layer yourself from the start. Airflow remains the right answer where an organisation already operates it well and the provider catalogue is doing real work; the lineage gap is closable with disciplined instrumentation.
 
 ## Related guides
 

@@ -8,6 +8,52 @@
   const ICON_CHECK =
     '<svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12.5 10 17.5 19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
+  /* --------------------------- Theme toggle ---------------------------- */
+  /* The stored choice is already stamped on <html> by the inline head script;
+     this only wires the control and keeps the label/meta in sync. With nothing
+     stored we follow the OS, so the button's job is to report the CURRENT
+     scheme (resolved from the media query) and flip away from it. */
+  function initTheme() {
+    const btn = document.querySelector("[data-theme-toggle]");
+    if (!btn) return;
+    const root = document.documentElement;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const metas = document.querySelectorAll('meta[name="theme-color"]');
+
+    const current = () =>
+      root.getAttribute("data-theme") || (mq.matches ? "dark" : "light");
+
+    const sync = () => {
+      const dark = current() === "dark";
+      btn.setAttribute(
+        "aria-label",
+        dark ? "Switch to light theme" : "Switch to dark theme"
+      );
+      btn.setAttribute("aria-pressed", String(dark));
+      // The two authored <meta>s are media-scoped for the follow-the-OS case;
+      // once a scheme is chosen explicitly both must report it, or the browser
+      // UI keeps painting the OS scheme's colour.
+      if (root.getAttribute("data-theme")) {
+        metas.forEach((m) => m.setAttribute("content", dark ? "#0c1512" : "#0f5a47"));
+      }
+    };
+
+    btn.addEventListener("click", () => {
+      const next = current() === "dark" ? "light" : "dark";
+      root.setAttribute("data-theme", next);
+      try {
+        localStorage.setItem("spe-theme", next);
+      } catch {}
+      sync();
+    });
+
+    // A reader who never chose explicitly should follow the OS as it changes.
+    mq.addEventListener("change", () => {
+      if (!root.getAttribute("data-theme")) sync();
+    });
+    sync();
+  }
+
   /* ---------------------------- Mobile nav ----------------------------- */
   function initNav() {
     const toggle = document.querySelector(".nav-toggle");
@@ -247,6 +293,7 @@
   }
 
   ready(() => {
+    initTheme();
     initNav();
     initCopyButtons();
     initTaskLists();

@@ -35,8 +35,8 @@ The last five years have seen forest carbon baselining move decisively away from
   <text x="112" y="212" text-anchor="middle" font-size="11" font-weight="700" fill="currentColor">benchmark region</text>
   <text x="112" y="230" text-anchor="middle" font-size="8.5" fill="currentColor" opacity="0.72">covariate-matched pixels</text>
   <text x="112" y="244" text-anchor="middle" font-size="8.5" fill="currentColor" opacity="0.72">jurisdictional rate</text>
-  <line x1="210" y1="96" x2="262" y2="130" stroke="currentColor" stroke-width="1.4" marker-end="url(#fcb-arrow)"/>
-  <line x1="210" y1="218" x2="262" y2="182" stroke="currentColor" stroke-width="1.4" marker-end="url(#fcb-arrow)"/>
+  <line x1="210" y1="96" x2="269" y2="134" stroke="currentColor" stroke-width="1.4" marker-end="url(#fcb-arrow)"/>
+  <line x1="210" y1="218" x2="269" y2="178" stroke="currentColor" stroke-width="1.4" marker-end="url(#fcb-arrow)"/>
   <!-- Middle: trajectory panel -->
   <rect x="270" y="48" width="336" height="234" rx="9" fill="currentColor" opacity="0.03"/>
   <rect x="270" y="48" width="336" height="234" rx="9" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.6"/>
@@ -95,6 +95,39 @@ Three failure modes account for most of the credibility crisis that has engulfed
 2. **Ignoring leakage, causing over-crediting.** The root cause is treating the project boundary as a closed system and crediting avoided emissions inside it while the deforestation activity simply relocates to unprotected forest outside it. Activity-shifting leakage (loggers and farmers move next door) and market leakage (reduced local supply raises prices and drives clearing elsewhere) both mean the atmosphere sees less benefit than the boundary suggests. If the pipeline does not monitor a leakage belt and deduct the loss observed there, the credited figure double-counts protection that did not occur at the landscape scale. Empirical leakage estimates for avoided-deforestation projects commonly fall in the range of roughly 20 to 80 percent of gross claimed reductions depending on the driver, so omitting the deduction can more than halve the true impact while leaving the issued volume untouched.
 
 3. **Static baseline drift as regional deforestation changes.** The root cause is fixing a historical-average baseline at project design and holding it constant for a decade while the regional deforestation rate that the baseline was meant to represent moves underneath it. When regional clearing slows — because of enforcement, commodity-price shifts, or macroeconomic change — a frozen high baseline keeps crediting against a threat that has receded, and the gap between the assumed counterfactual and reality widens every year. Even a modest divergence of a few percentage points of forest-loss rate per year compounds: over a ten-year crediting period a static baseline can drift to double the genuine counterfactual, generating a steadily growing stream of non-additional credits. This is precisely the failure the shift to periodically re-estimated dynamic benchmarks under VM0047 is designed to eliminate, and it is the strongest engineering argument for building baselines as regenerable surfaces rather than constants in a config file.
+
+<svg viewBox="0 -4 780 218" role="img" aria-labelledby="bl-t bl-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="bl-t">Three baseline constructions on the same project, and the credit each implies</title>
+  <desc id="bl-d">A chart of cumulative deforestation over ten years for one project. The observed project trajectory is nearly flat. Three counterfactual baselines are drawn above it. A historical-average baseline, extrapolating the project area's own prior rate, is the highest and implies 610 kilotonnes of avoided emissions. A jurisdictional baseline, using the wider region's rate, is intermediate and implies 430. A matched-control baseline, using areas statistically similar to the project at validation, is the lowest and implies 290. A panel notes that all three are defensible constructions, that the choice more than doubles the credit, and that this is why methodologies increasingly prescribe the construction rather than leaving it open.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">The construction more than doubles the credit</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Cumulative deforestation, one project, three counterfactuals.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1" opacity="0.22">
+    <line x1="80" y1="60" x2="560" y2="60"/><line x1="80" y1="102" x2="560" y2="102"/><line x1="80" y1="144" x2="560" y2="144"/>
+  </g>
+  <g stroke="currentColor" stroke-width="1.3">
+    <line x1="80" y1="50" x2="80" y2="176"/>
+    <line x1="80" y1="176" x2="560" y2="176"/>
+  </g>
+  <g font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.72">
+    <text x="80" y="192" text-anchor="middle">yr 0</text>
+    <text x="320" y="192" text-anchor="middle">yr 5</text>
+    <text x="560" y="192" text-anchor="middle">yr 10</text>
+    <text x="30" y="118" transform="rotate(-90 30 118)" text-anchor="middle" font-weight="600">cumulative loss</text>
+  </g>
+  <polyline points="80,176 176,166 272,158 368,152 464,146 560,142" fill="none" stroke="currentColor" stroke-width="3"/>
+  <polyline points="80,176 176,152 272,128 368,104 464,80 560,56" fill="none" stroke="#f3a712" stroke-width="2.6"/>
+  <polyline points="80,176 176,158 272,140 368,122 464,104 560,88" fill="none" stroke="currentColor" stroke-width="2.4" stroke-dasharray="7,4"/>
+  <polyline points="80,176 176,164 272,150 368,138 464,124 560,112" fill="none" stroke="currentColor" stroke-width="2.4" stroke-dasharray="3,3"/>
+  <g font-family="system-ui, sans-serif" font-size="9.5" font-weight="600">
+    <text x="576" y="60" fill="#f3a712">historical average → 610 kt</text>
+    <text x="576" y="92" fill="currentColor">jurisdictional → 430 kt</text>
+    <text x="576" y="116" fill="currentColor" opacity="0.85">matched controls → 290 kt</text>
+    <text x="576" y="146" fill="currentColor">observed project</text>
+    <text x="12" y="210" font-weight="400" fill="currentColor" opacity="0.82">All three are defensible constructions — which is exactly why methodologies now prescribe one rather than leaving it open.</text>
+  </g>
+</svg>
 
 ## Deterministic Implementation Architecture
 
@@ -295,6 +328,64 @@ Every output of this stage maps to a specific control in the standards that gove
 
 
 For debugging, treat the worst covariate SMD, the fraction of project pixels with no acceptable donor match, and the ratio of leakage-belt loss to gross avoided loss as monitored signals on every run — including the ones that pass — so that a slowly degrading donor pool or a widening jurisdictional divergence surfaces as a trend long before it breaches a hard gate. Three silent failures deserve dedicated diagnostics: a donor pool that has shrunk until nearest-neighbour matches are being drawn from ecologically distant pixels while the SMD still squeaks under the limit; a static baseline left un-regenerated past its validity window, which should raise on the run date rather than continue crediting; and a leakage belt whose own forest cover has been quietly clipped by an unrelated boundary edit, understating displacement. Validation should include a placebo test — running the matching against a pseudo-project inside the donor pool, which should yield near-zero additionality — and a sensitivity sweep on the uncertainty deduction and buffer rate against the methodology's floors.
+
+<svg viewBox="0 -4 880 216" role="img" aria-labelledby="add-t add-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="add-t">The additionality tests and what each one can and cannot establish</title>
+  <desc id="add-d">Four additionality tests. The regulatory surplus test asks whether the activity is already required by law and is objective and easy to evidence. The investment test asks whether the activity is financially unattractive without carbon revenue, and depends on assumptions that are hard to verify externally. The barriers test asks whether non-financial obstacles exist, and is the weakest because barriers are asserted rather than measured. The common practice test asks whether similar actors already do this without carbon finance, and is the most externally checkable because it rests on observable behaviour. A panel notes that spatial MRV contributes evidence to the last test and nothing directly to the first three.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Only one of these is something a pipeline can evidence</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Spatial MRV speaks to common practice, and to nothing else here.</text>
+    <rect x="12" y="52" width="212" height="140" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="12" y="52" width="212" height="140" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="28" y="76" fill="currentColor" font-size="10.5" font-weight="700">Regulatory surplus</text>
+    <text x="28" y="100" fill="currentColor" font-size="9.5" opacity="0.85">already required by law?</text>
+    <text x="28" y="126" fill="currentColor" font-size="9.5" font-weight="700">objective, easy to evidence</text>
+    <text x="28" y="152" fill="currentColor" font-size="9" opacity="0.75">a legal question, not a</text>
+    <text x="28" y="168" fill="currentColor" font-size="9" opacity="0.75">measurement one</text>
+    <rect x="236" y="52" width="212" height="140" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="236" y="52" width="212" height="140" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="252" y="76" fill="currentColor" font-size="10.5" font-weight="700">Investment</text>
+    <text x="252" y="100" fill="currentColor" font-size="9.5" opacity="0.85">unattractive without credits?</text>
+    <text x="252" y="126" fill="#f3a712" font-size="9.5" font-weight="700">rests on assumptions</text>
+    <text x="252" y="152" fill="currentColor" font-size="9" opacity="0.75">hard for anyone outside</text>
+    <text x="252" y="168" fill="currentColor" font-size="9" opacity="0.75">the project to verify</text>
+    <rect x="460" y="52" width="212" height="140" rx="9" fill="none" stroke="#f3a712" stroke-width="1.9" stroke-dasharray="6,3"/>
+    <text x="476" y="76" fill="currentColor" font-size="10.5" font-weight="700">Barriers</text>
+    <text x="476" y="100" fill="currentColor" font-size="9.5" opacity="0.85">non-financial obstacles?</text>
+    <text x="476" y="126" fill="#f3a712" font-size="9.5" font-weight="700">asserted, not measured</text>
+    <text x="476" y="152" fill="currentColor" font-size="9" opacity="0.75">the weakest of the four,</text>
+    <text x="476" y="168" fill="currentColor" font-size="9" opacity="0.75">and the most contested</text>
+    <rect x="684" y="52" width="184" height="140" rx="9" fill="currentColor" opacity="0.12"/>
+    <rect x="684" y="52" width="184" height="140" rx="9" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <text x="700" y="76" fill="currentColor" font-size="10.5" font-weight="700">Common practice</text>
+    <text x="700" y="100" fill="currentColor" font-size="9.5" opacity="0.85">do similar actors already?</text>
+    <text x="700" y="126" fill="currentColor" font-size="9.5" font-weight="700">observable behaviour</text>
+    <text x="700" y="152" fill="currentColor" font-size="9" opacity="0.78">the one spatial evidence</text>
+    <text x="700" y="168" fill="currentColor" font-size="9" opacity="0.78">can actually speak to</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### Which baseline construction should a project use?
+
+Whichever the methodology prescribes — and increasingly they do prescribe, precisely because the choice moves the credit so much. Where a choice remains, matched controls are the most defensible because they are counterfactual by construction and testable through balance diagnostics; a historical average extrapolated from the project's own past is the least, because it assumes the project area would have continued behaving as it did while everything around it changed.
+
+### How often should a baseline be revisited?
+
+At the intervals the methodology specifies, typically every five to ten years, and never opportunistically. A baseline revised whenever it becomes unfavourable is not a counterfactual, and the pattern is visible to anyone examining the project record. Fix the revision schedule at validation, apply it whether the revision helps or hurts, and disclose the effect of each revision on the reported figure.
+
+### What can spatial data actually contribute to additionality?
+
+Evidence for the common-practice test, and a check on the plausibility of the baseline. Satellite records show what comparable actors in comparable landscapes actually did, which is the one additionality question with an observable answer. The regulatory, investment, and barriers tests are legal and financial questions that no imagery can settle — presenting spatial analysis as evidence for them overstates what the data says.
+
+### How is the reference region chosen?
+
+By similarity on the drivers of deforestation as they stood before the project, tested rather than asserted. The region must be large enough to give a stable rate and similar enough that its rate is a credible counterfactual, which are competing requirements. Publish the covariates used, the balance statistics achieved, and the pre-project trend comparison — those three artefacts are what turn a reference region from a claim into evidence.
+
+### What happens when the baseline turns out to be wrong?
+
+It is revised at the scheduled point, and the effect is disclosed. Baselines are predictions and some will prove poor; the failure is not being wrong but adjusting quietly. Where a baseline proves substantially too high, the honest treatment is a downward revision at the next scheduled point with the difference stated, which is far cheaper to your credibility than a reviewer discovering the gap between the counterfactual and the observed regional trend.
 
 ## Conclusion
 

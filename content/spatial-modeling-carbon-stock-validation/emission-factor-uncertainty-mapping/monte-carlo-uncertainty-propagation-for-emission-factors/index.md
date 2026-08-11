@@ -14,7 +14,7 @@ A total-emissions figure is only as defensible as the uncertainty that ships wit
 
 The engineering problem is that emission factors and activity data each carry their own error, those errors are frequently correlated, and the analytic error-propagation formula most spreadsheets use assumes they are not. When a project multiplies a factor by an activity quantity and sums thousands of such products across a landscape, the naive first-order propagation understates the joint variance wherever factors share a source table or activity strata share a survey instrument. Monte Carlo simulation sidesteps the closed-form algebra entirely: it draws correlated samples from the input distributions, recomputes the total emissions on every draw, and reads the confidence interval straight off the empirical distribution of results. The output is not a smoother number — it is a distribution the [ground-truth alignment for carbon models](https://www.spatialpipelineengineering.org/spatial-modeling-carbon-stock-validation/ground-truth-alignment-for-carbon-models/) stage can interrogate and a verifier can rerun.
 
-<svg viewBox="0 0 1000 250" role="img" aria-labelledby="mc-t mc-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+<svg viewBox="-4 42 1008 214" role="img" aria-labelledby="mc-t mc-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
   <title id="mc-t">Monte Carlo emission-factor propagation flow ending in a conservative audited figure</title>
   <desc id="mc-d">Factor and activity-data distributions on the left feed a correlated sampling stage that draws N joint samples respecting the input covariance. Each sample is combined per iteration into a total CO2e value, forming an aggregate distribution of 10,000 results. From that distribution a mean and 95% confidence interval are read, and a conservative deduction is applied to yield the reported and audited figure, drawn in amber.</desc>
   <defs>
@@ -271,6 +271,40 @@ def propagate_emissions_mc(
 
 The conservative estimate is the load-bearing output. Rather than reporting the mean and subtracting a fixed percentage, the routine reads the 2.5th percentile of the simulated distribution directly, which is exactly the "lower bound of the 95% confidence interval" that Verra and IPCC conservativeness rules ask a project to credit against. Because the percentile comes from the correlated draw, it already reflects the widened interval that analytic propagation would have hidden — the deduction is neither an arbitrary haircut nor an over-tight number a verifier can reject.
 
+<svg viewBox="0 -4 730 216" role="img" aria-labelledby="draw-t draw-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="draw-t">How many Monte Carlo draws are enough, by the statistic being reported</title>
+  <desc id="draw-d">A chart of the stability of a reported statistic against the number of draws, from 100 to 100 000. The mean stabilises within about 1 percent by 2 000 draws. The 95 percent interval bounds stabilise by about 20 000 draws. The 99th percentile, needed for a tail-risk statement, is still moving at 100 000. A panel notes that the required draw count depends entirely on which statistic goes in the report, that a default of ten thousand is adequate for a mean and marginal for an interval, and that the draw count and the random seed must both be recorded so the interval is byte-reproducible.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">The draw count depends on which statistic you report</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Stability of the reported figure against draws.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1" opacity="0.22">
+    <line x1="80" y1="60" x2="560" y2="60"/><line x1="80" y1="102" x2="560" y2="102"/><line x1="80" y1="144" x2="560" y2="144"/>
+  </g>
+  <g stroke="currentColor" stroke-width="1.3">
+    <line x1="80" y1="50" x2="80" y2="174"/>
+    <line x1="80" y1="174" x2="560" y2="174"/>
+  </g>
+  <g font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.72">
+    <text x="72" y="64" text-anchor="end">±10%</text>
+    <text x="72" y="106" text-anchor="end">±5%</text>
+    <text x="72" y="148" text-anchor="end">±1%</text>
+    <text x="80" y="192" text-anchor="middle">100</text>
+    <text x="240" y="192" text-anchor="middle">2 000</text>
+    <text x="400" y="192" text-anchor="middle">20 000</text>
+    <text x="560" y="192" text-anchor="middle">100 000</text>
+  </g>
+  <polyline points="80,66 160,120 240,152 320,164 400,169 480,171 560,172" fill="none" stroke="currentColor" stroke-width="2.6" stroke-dasharray="7,4"/>
+  <polyline points="80,58 160,86 240,112 320,134 400,150 480,160 560,166" fill="none" stroke="currentColor" stroke-width="2.8"/>
+  <polyline points="80,54 160,62 240,74 320,88 400,100 480,112 560,124" fill="none" stroke="#f3a712" stroke-width="2.8"/>
+  <g font-family="system-ui, sans-serif" font-size="9.5" font-weight="600">
+    <text x="576" y="176" fill="currentColor" opacity="0.85">mean</text>
+    <text x="576" y="166" fill="currentColor">95% bounds</text>
+    <text x="576" y="126" fill="#f3a712">99th percentile</text>
+    <text x="12" y="208" font-weight="400" fill="currentColor" opacity="0.82">Record the draw count and the seed. An interval that changes when you re-run it is not evidence.</text>
+  </g>
+</svg>
+
 ## Compliance Gating & Audit Trail Generation
 
 The simulation output becomes a submission artifact only when it is bound to the assumptions that produced it. Three gates make that binding auditable. The **convergence flag** must be true before any figure is quoted; a `converged=False` result is a draft, not a claim, and the logged relative Monte Carlo standard error tells a reviewer how far off it was. The **conservative percentile** is recorded explicitly so a verifier can confirm the project credited the lower bound rather than the mean — this maps directly onto the conservativeness principle in ISO 14064-3 and the uncertainty-deduction clauses of the Verra VM-series. The **seed, sample count, and input covariance** are serialized alongside the result so the entire interval can be regenerated bit-for-bit, which is what turns "we ran a Monte Carlo" into a reproducible control an auditor can rerun.
@@ -289,6 +323,50 @@ Deploy the simulator inside the MRV orchestration layer along a fixed ingest →
 6. **Submit.** Forward the conservative estimate as the creditable volume and the full distribution as supporting evidence, feeding the baseline logic in [forest carbon baseline & additionality modeling](https://www.spatialpipelineengineering.org/spatial-modeling-carbon-stock-validation/forest-carbon-baseline-and-additionality-modeling/) and the calibration checks in [ground-truth alignment for carbon models](https://www.spatialpipelineengineering.org/spatial-modeling-carbon-stock-validation/ground-truth-alignment-for-carbon-models/).
 
 Run the simulation as an idempotent task keyed on the input revision and seed, so a rerun over unchanged inputs reproduces the identical interval and a changed factor revision produces a new, traceable record. By validating uncertainty metadata before it simulates, imposing correlation in the draw rather than assuming it away, gating on convergence, and reading the conservative figure straight off the empirical tail, Monte Carlo propagation turns a fragile analytic estimate into a total-emissions figure that survives third-party verification and carries its own reproducible proof.
+
+<svg viewBox="0 -4 880 218" role="img" aria-labelledby="corr-t corr-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="corr-t">Correlated versus independent draws on the same inputs</title>
+  <desc id="corr-d">Two sampling schemes applied to the same three inputs — area, biomass density, and carbon fraction. Under independent sampling, each input is drawn separately, the extremes rarely coincide, and the resulting total distribution is narrow with a 95 percent interval of plus or minus 18 percent. Under correlated sampling, which respects that biomass density and carbon fraction are estimated from the same field campaign and move together, the extremes coincide more often and the interval widens to plus or minus 27 percent. A panel notes that independence is an assumption, not a default, and that assuming it where correlation exists understates the interval by half.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Independence is an assumption, not a default</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Same three inputs, two sampling schemes.</text>
+    <rect x="12" y="52" width="424" height="140" rx="9" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="5,3"/>
+    <text x="28" y="76" fill="currentColor" font-size="10.5" font-weight="700">Independent draws</text>
+    <text x="28" y="100" fill="currentColor" font-size="9.5" opacity="0.85">area, density and carbon fraction drawn separately</text>
+    <text x="28" y="120" fill="currentColor" font-size="9.5" opacity="0.85">extremes rarely coincide</text>
+    <text x="28" y="150" fill="currentColor" font-size="15" font-weight="700">±18%</text>
+    <text x="28" y="176" fill="currentColor" font-size="9.5" opacity="0.85">comfortable, and not what the data supports</text>
+    <rect x="456" y="52" width="412" height="140" rx="9" fill="currentColor" opacity="0.12"/>
+    <rect x="456" y="52" width="412" height="140" rx="9" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <text x="472" y="76" fill="currentColor" font-size="10.5" font-weight="700">Correlated draws</text>
+    <text x="472" y="100" fill="currentColor" font-size="9.5" opacity="0.85">density and carbon fraction share a field campaign</text>
+    <text x="472" y="120" fill="currentColor" font-size="9.5" opacity="0.85">so they move together, and extremes coincide</text>
+    <text x="472" y="150" fill="#f3a712" font-size="15" font-weight="700">±27%</text>
+    <text x="472" y="176" fill="currentColor" font-size="9.5" opacity="0.85">wider, and defensible</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### How many draws does a Monte Carlo propagation need?
+
+It depends on which statistic reaches the report. A mean stabilises within a couple of thousand draws; the bounds of a 95% interval need tens of thousands; a tail percentile for a risk statement may still be moving at a hundred thousand. Choose the count from the statistic you will publish, verify stability by re-running with a different seed and comparing, and record both the count and the seed so the interval is reproducible.
+
+### Which correlations actually matter?
+
+Any inputs estimated from the same underlying data. Biomass density and carbon fraction derived from the same field campaign move together; a root-to-shoot ratio applied to a modelled above-ground estimate is perfectly correlated with it; emission factors from the same publication share its systematic error. Treating those as independent lets their extremes cancel in the simulation, narrowing the interval by a factor that is often close to two.
+
+### What distribution should each input take?
+
+Whatever the source states, and a defensible default where it does not. Published factors frequently give a mean and a 95% interval without naming a distribution; a normal or lognormal fitted to those bounds is reasonable, with lognormal preferred for strictly positive quantities where the interval is asymmetric. Record the choice per input — the distribution is part of the method, and a verifier reproducing your interval needs it.
+
+### Can analytic error propagation replace the simulation?
+
+For simple products and sums of independent, roughly normal terms, yes, and it is cheaper. It breaks down exactly where carbon accounting lives: non-linear model forms, truncated distributions, correlated inputs, and quantities that must stay positive. The practical compromise is analytic propagation during development for fast feedback and a Monte Carlo pass for anything that reaches a report, with the two compared once to confirm the analytic version is not wildly optimistic.
+
+### How should the simulation be made reproducible?
+
+Fix and record the seed, fix the draw count, and avoid any source of ordering non-determinism in how the draws are consumed — parallel workers each drawing from a shared generator will not reproduce. Seed per partition from a recorded master seed instead, so the whole simulation is reproducible regardless of how the work is distributed. An interval that changes on re-run is not evidence, however carefully it was computed.
 
 ## Related guides
 

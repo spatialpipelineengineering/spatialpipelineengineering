@@ -186,6 +186,51 @@ def preflight(resp: requests.Response, registry: str) -> dict:
     return body
 ```
 
+<svg viewBox="0 -4 900 254" role="img" aria-labelledby="pag-t pag-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="pag-t">Why offset pagination loses and duplicates records against a live registry</title>
+  <desc id="pag-d">Two pagination strategies shown against a registry whose record set changes during the crawl. With offset pagination, page one returns records one to one hundred, then a new record is inserted at position forty, so page two starting at offset one hundred re-returns the record that shifted to position one hundred and one and skips nothing visibly — but a deletion during the crawl causes a record to be skipped entirely with no error. With cursor pagination keyed on a stable identifier, each page continues from the last identifier seen, so insertions and deletions elsewhere in the set cannot shift the window. A panel notes that offset pagination against a mutating collection silently loses records and that the loss is invisible without a count reconciliation.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Offset pagination is unsafe against a live collection</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Registries mutate while you crawl. The window must be anchored to the data, not to a position.</text>
+    <text x="12" y="66" fill="currentColor" font-size="10" font-weight="700">Offset</text>
+    <text x="12" y="82" fill="currentColor" font-size="9" opacity="0.7">?offset=100</text>
+  </g>
+  <g>
+    <rect x="128" y="56" width="180" height="38" rx="6" fill="currentColor" opacity="0.1"/>
+    <rect x="128" y="56" width="180" height="38" rx="6" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="218" y="80" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" fill="currentColor">page 1 · rows 1–100</text>
+    <rect x="330" y="56" width="180" height="38" rx="6" fill="currentColor" opacity="0.1"/>
+    <rect x="330" y="56" width="180" height="38" rx="6" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="420" y="80" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" fill="currentColor">page 2 · rows 101–200</text>
+    <rect x="532" y="56" width="180" height="38" rx="6" fill="#f3a712" opacity="0.22"/>
+    <rect x="532" y="56" width="180" height="38" rx="6" fill="none" stroke="#f3a712" stroke-width="1.8"/>
+    <text x="622" y="80" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">row 187 skipped</text>
+    <text x="726" y="80" font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.78">a deletion shifted the window</text>
+  </g>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="150" fill="currentColor" font-size="10" font-weight="700">Cursor</text>
+    <text x="12" y="166" fill="currentColor" font-size="9" opacity="0.7">?after=VCS-1387</text>
+  </g>
+  <g>
+    <rect x="128" y="140" width="180" height="38" rx="6" fill="currentColor" opacity="0.1"/>
+    <rect x="128" y="140" width="180" height="38" rx="6" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="218" y="164" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" fill="currentColor">… ends at VCS-1387</text>
+    <rect x="330" y="140" width="180" height="38" rx="6" fill="currentColor" opacity="0.1"/>
+    <rect x="330" y="140" width="180" height="38" rx="6" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="420" y="164" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" fill="currentColor">continues after VCS-1387</text>
+    <rect x="532" y="140" width="180" height="38" rx="6" fill="currentColor" opacity="0.18"/>
+    <rect x="532" y="140" width="180" height="38" rx="6" fill="none" stroke="currentColor" stroke-width="1.6"/>
+    <text x="622" y="164" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">nothing shifts</text>
+    <text x="726" y="164" font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.78">insertions land outside the window</text>
+  </g>
+  <g font-family="system-ui, sans-serif">
+    <rect x="12" y="200" width="876" height="40" rx="8" fill="currentColor" opacity="0.06"/>
+    <rect x="12" y="200" width="876" height="40" rx="8" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="28" y="218" fill="currentColor" font-size="9.5" font-weight="700">Where only offset is offered, reconcile the crawl against the collection count and re-crawl on mismatch.</text>
+    <text x="28" y="234" fill="currentColor" font-size="9.5" opacity="0.82">A skipped record raises no error, returns no warning, and is simply absent from the inventory.</text>
+  </g>
+</svg>
+
 ## Deterministic Transformation Logic
 
 With a validated response in hand, the transformer enforces a strict schema, repairs geometry, and reprojects every boundary into one area-preserving datum. Schema enforcement uses `pydantic` so missing or renamed fields raise a typed error instead of corrupting a calculation. Geometry handling uses `pyproj` with `always_xy=True` to pin longitude/latitude axis order — the single most common source of silent datum inversion — and validates against an equal-area projection so any area-distortion defect is caught at ingestion rather than during reporting. A SHA-256 hash of the canonicalized raw payload is computed before transformation so the artifact is content-addressed and idempotent.
@@ -352,6 +397,64 @@ The numbered execution order is **ingest → diagnose → transform → validate
 6. **Submit.** Attach an `X-Request-Id` idempotency key to any `POST` back to the registry, and map vintage and methodology codes to the registry's submission schema — Verra VCS for Verra, the Gold Standard Impact Registry schema for Gold Standard.
 
 Built this way, the connector eliminates silent data corruption, enforces deterministic spatial alignment, and produces a cryptographically verifiable audit trail — the foundational reliability the rest of the MRV stack assumes its inputs already have.
+
+<svg viewBox="0 -4 880 240" role="img" aria-labelledby="rt-t rt-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="rt-t">Retry policy by failure class, and which classes must never be retried</title>
+  <desc id="rt-d">Four failure classes with their correct handling. A 429 rate-limit response is retried with exponential backoff honouring the retry-after header, and is safe because no state changed. A 5xx server error is retried with backoff and jitter, capped at five attempts, and is safe for idempotent reads. A 4xx client error other than 429 is never retried because the request itself is wrong and repeating it wastes quota and hides the defect. A partial or truncated response is not retried blindly but re-requested from the last confirmed cursor, because a blind retry would duplicate records already ingested. A panel notes that the retry budget belongs to the crawl rather than to the individual request.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Retry by failure class, not by exception type</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">The question is always the same: can repeating this request change the result?</text>
+    <rect x="12" y="54" width="212" height="112" rx="9" fill="currentColor" opacity="0.08"/>
+    <rect x="12" y="54" width="212" height="112" rx="9" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <text x="28" y="78" fill="currentColor" font-size="11" font-weight="700">429 rate limit</text>
+    <text x="28" y="102" fill="currentColor" font-size="9.5" opacity="0.85">retry with backoff</text>
+    <text x="28" y="120" fill="currentColor" font-size="9.5" opacity="0.85">honour Retry-After</text>
+    <text x="28" y="146" fill="currentColor" font-size="9.5" font-weight="700">safe — nothing changed</text>
+    <rect x="236" y="54" width="212" height="112" rx="9" fill="currentColor" opacity="0.08"/>
+    <rect x="236" y="54" width="212" height="112" rx="9" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <text x="252" y="78" fill="currentColor" font-size="11" font-weight="700">5xx server error</text>
+    <text x="252" y="102" fill="currentColor" font-size="9.5" opacity="0.85">backoff with jitter</text>
+    <text x="252" y="120" fill="currentColor" font-size="9.5" opacity="0.85">cap at five attempts</text>
+    <text x="252" y="146" fill="currentColor" font-size="9.5" font-weight="700">safe for idempotent reads</text>
+    <rect x="460" y="54" width="212" height="112" rx="9" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="5,3"/>
+    <text x="476" y="78" fill="currentColor" font-size="11" font-weight="700">4xx other than 429</text>
+    <text x="476" y="102" fill="#f3a712" font-size="9.5" font-weight="700">never retry</text>
+    <text x="476" y="120" fill="currentColor" font-size="9.5" opacity="0.85">the request is wrong</text>
+    <text x="476" y="146" fill="currentColor" font-size="9.5" opacity="0.85">retrying burns quota, hides it</text>
+    <rect x="684" y="54" width="184" height="112" rx="9" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="5,3"/>
+    <text x="700" y="78" fill="currentColor" font-size="11" font-weight="700">Truncated body</text>
+    <text x="700" y="102" fill="#f3a712" font-size="9.5" font-weight="700">no blind retry</text>
+    <text x="700" y="120" fill="currentColor" font-size="9.5" opacity="0.85">resume from the last</text>
+    <text x="700" y="138" fill="currentColor" font-size="9.5" opacity="0.85">confirmed cursor</text>
+    <text x="700" y="158" fill="currentColor" font-size="9" opacity="0.75">else records duplicate</text>
+    <rect x="12" y="184" width="856" height="46" rx="8" fill="currentColor" opacity="0.06"/>
+    <rect x="12" y="184" width="856" height="46" rx="8" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="28" y="204" fill="currentColor" font-size="9.5" font-weight="700">A retry budget belongs to the crawl, not to the request.</text>
+    <text x="28" y="222" fill="currentColor" font-size="9.5" opacity="0.82">Five attempts per page across ten thousand pages is fifty thousand extra calls — enough to be banned rather than throttled.</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### How should credentials be handled for a long-running registry crawl?
+
+Load them from the environment or a secret manager at process start, never from a file in the repository, and refresh tokens on expiry rather than on a fixed schedule — registry token lifetimes differ and several shorten them without notice. Crucially, never log the credential or the full request URL when the token travels as a query parameter, because crawl logs are usually the least-protected artefact in the pipeline. Where the registry supports it, use a read-only scoped credential so a leaked token cannot retire credits.
+
+### What is a safe request rate against a public registry API?
+
+Slower than the documented limit, and adaptive. Published limits are frequently aspirational, shared across an organisation's address range, and enforced inconsistently; a crawl that runs at the stated maximum will eventually meet a throttle it did not expect. Start at roughly half the documented rate, honour every `Retry-After` exactly, and back off globally rather than per-request when throttling appears — a per-request backoff with concurrent workers keeps the aggregate rate high and prolongs the throttle.
+
+### Should the connector store raw responses or only parsed records?
+
+Both, with the raw response as the primary artefact. Storing the raw JSON or CSV exactly as received, with its retrieval timestamp and a checksum, means a schema surprise discovered six months later can be re-parsed from what the registry actually sent rather than reconstructed from what your parser understood. It also makes the reconciliation record independently verifiable: an auditor can re-derive the parsed table from stored bytes. The storage cost is trivial next to the cost of an unreproducible discrepancy.
+
+### How do I detect that a registry has changed its schema before it breaks a number?
+
+Validate every response against a pinned schema and treat any additional, missing, or retyped field as a hard failure requiring review. A permissive parser that ignores unknown fields will happily accept a release where a quantity field gained a unit suffix and changed magnitude — a change that produces plausible numbers that are wrong by three orders of magnitude. Pin the schema as a versioned artefact, diff it on every release, and make the connector's schema version part of the provenance record.
+
+### Can the same connector serve both Verra and Gold Standard?
+
+Share the transport, retry, and provenance layers; keep the schema mapping and the crediting-period semantics separate. The two registries differ in identifier structure, status vocabularies, geometry delivery, and how crediting periods are expressed, and a single mapping layer that tries to accommodate both accumulates conditionals that hide behaviour. A thin per-registry adapter emitting the canonical record, over a shared client, is easier to test and much easier to change when one registry revises its export.
 
 ## Related
 

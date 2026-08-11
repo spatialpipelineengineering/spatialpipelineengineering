@@ -252,6 +252,41 @@ def backfill_partition(gdf: gpd.GeoDataFrame, project_id: str, period: str,
 
 The swap in step 4 is the load-bearing detail. Writing to `tmp_path` and then issuing a single-object rename means a reader querying the live path either sees the previous committed partition or the new one — never a half-written file, and never two copies. Because the partition path is one object per `(project_id, period, factor_version)`, the rename replaces exactly the row set it is meant to, and no `DELETE` step can race the `INSERT`. The content hash stored in the file metadata is what lets the next run's hash-compare short-circuit unchanged periods, so a broad re-run over a year touches only the partitions that genuinely moved.
 
+<svg viewBox="0 -4 900 228" role="img" aria-labelledby="key-t key-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="key-t">Four candidate partition keys, and which survive a replay</title>
+  <desc id="key-d">Four keying strategies evaluated against a replay. A key derived from tile and period is deterministic, so a replay writes to the same path and replaces the previous output — safe. A key including the run identifier is unique per run, so a replay writes a new path and the old output remains, double counting on read — unsafe. A key including a wall-clock timestamp behaves the same way and additionally cannot be predicted, so a reader cannot find the output — unsafe. A key derived from a content hash of the inputs is deterministic and additionally detects an upstream change, but requires reading the inputs before deciding the path. The first and fourth are marked safe.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">The partition key decides whether replay is safe</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Everything else in a backfill follows from this one choice.</text>
+    <rect x="12" y="52" width="212" height="152" rx="9" fill="currentColor" opacity="0.13"/>
+    <rect x="12" y="52" width="212" height="152" rx="9" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <text x="28" y="76" fill="currentColor" font-size="10.5" font-weight="700">hash(tile, period)</text>
+    <text x="28" y="100" fill="currentColor" font-size="9.5" opacity="0.85">deterministic</text>
+    <text x="28" y="120" fill="currentColor" font-size="9.5" opacity="0.85">replay overwrites in place</text>
+    <text x="28" y="148" fill="currentColor" font-size="10" font-weight="700">safe</text>
+    <text x="28" y="176" fill="currentColor" font-size="9" opacity="0.75">the default choice</text>
+    <rect x="236" y="52" width="212" height="152" rx="9" fill="none" stroke="#f3a712" stroke-width="1.9" stroke-dasharray="6,3"/>
+    <text x="252" y="76" fill="currentColor" font-size="10.5" font-weight="700">…including run_id</text>
+    <text x="252" y="100" fill="currentColor" font-size="9.5" opacity="0.85">unique per run</text>
+    <text x="252" y="120" fill="currentColor" font-size="9.5" opacity="0.85">old output survives</text>
+    <text x="252" y="148" fill="#f3a712" font-size="10" font-weight="700">unsafe — double counts</text>
+    <text x="252" y="176" fill="currentColor" font-size="9" opacity="0.75">on any read that globs</text>
+    <rect x="460" y="52" width="212" height="152" rx="9" fill="none" stroke="#f3a712" stroke-width="1.9" stroke-dasharray="6,3"/>
+    <text x="476" y="76" fill="currentColor" font-size="10.5" font-weight="700">…including a timestamp</text>
+    <text x="476" y="100" fill="currentColor" font-size="9.5" opacity="0.85">unique and unpredictable</text>
+    <text x="476" y="120" fill="currentColor" font-size="9.5" opacity="0.85">reader cannot locate it</text>
+    <text x="476" y="148" fill="#f3a712" font-size="10" font-weight="700">unsafe — and unfindable</text>
+    <text x="476" y="176" fill="currentColor" font-size="9" opacity="0.75">breaks determinism too</text>
+    <rect x="684" y="52" width="204" height="152" rx="9" fill="currentColor" opacity="0.1"/>
+    <rect x="684" y="52" width="204" height="152" rx="9" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <text x="700" y="76" fill="currentColor" font-size="10.5" font-weight="700">hash(input digests)</text>
+    <text x="700" y="100" fill="currentColor" font-size="9.5" opacity="0.85">deterministic</text>
+    <text x="700" y="120" fill="currentColor" font-size="9.5" opacity="0.85">detects upstream change</text>
+    <text x="700" y="148" fill="currentColor" font-size="10" font-weight="700">safe, costlier</text>
+    <text x="700" y="176" fill="currentColor" font-size="9" opacity="0.75">must read inputs first</text>
+  </g>
+</svg>
+
 ## Compliance Gating & Audit Trail Generation
 
 A backfill is not finished when the data is correct; it is finished when the correction is recorded. Every run — including a skipped one — emits a lineage event so the audit trail extends rather than resets. The event captures the idempotency key, the content hash, the factor version, and the input references, giving a verifier the queryable chain of custody that [MRV data lineage and provenance tracking](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/mrv-data-lineage-provenance-tracking/) requires under ISO 14064-3.
@@ -288,6 +323,55 @@ Deploy the backfill as an orchestrated flow that follows a fixed ingest → diag
 6. **Submit.** Call `emit_lineage` for every period and forward the corrected partitions for registry submission. Where a backfill touches shared boundaries, reconcile it against the rules in [preventing Scope 3 double-counting in spatial joins](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/ghg-protocol-scope-3-spatial-mapping/preventing-scope-3-double-counting-in-spatial-joins/) so no tonne is claimed twice across project edges.
 
 Idempotency is what turns a backfill from a high-risk manual event into a routine, repeatable operation. By addressing every output as a deterministic partition, skipping unchanged work by content hash, swapping atomically so no reader ever sees a partial write, and re-emitting lineage on every run, the pipeline can reprocess an entire history as often as a correction demands without ever inflating a reported tonne or breaking the audit trail that defends it.
+
+<svg viewBox="0 -4 880 226" role="img" aria-labelledby="wr-t wr-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="wr-t">Write protocols and what each leaves behind when a worker dies mid-write</title>
+  <desc id="wr-d">Three write protocols under a worker crash. Writing directly to the final path leaves a truncated file that a reader will happily parse as a short partition, silently losing rows. Writing to a temporary path and renaming leaves the temporary file as garbage but the final path either absent or complete, so a reader sees no partial data. Writing to a temporary path, verifying a row count and checksum, then renaming, additionally guarantees that a completed file is a correct file rather than merely a whole one. A panel notes that object stores without atomic rename need a manifest commit instead, and that the property being bought is the same either way.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">What a dead worker leaves behind</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">The reader cannot tell a short partition from a small one.</text>
+    <rect x="12" y="52" width="280" height="122" rx="9" fill="none" stroke="#f3a712" stroke-width="1.9" stroke-dasharray="6,3"/>
+    <text x="28" y="76" fill="currentColor" font-size="10.5" font-weight="700">Write to the final path</text>
+    <text x="28" y="102" fill="currentColor" font-size="9.5" opacity="0.85">crash leaves a truncated file</text>
+    <text x="28" y="122" fill="#f3a712" font-size="9.5" font-weight="700">reader parses it as a short partition</text>
+    <text x="28" y="148" fill="currentColor" font-size="9.5" opacity="0.85">rows lost, no error</text>
+    <rect x="300" y="52" width="280" height="122" rx="9" fill="currentColor" opacity="0.08"/>
+    <rect x="300" y="52" width="280" height="122" rx="9" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <text x="316" y="76" fill="currentColor" font-size="10.5" font-weight="700">Temp path, then rename</text>
+    <text x="316" y="102" fill="currentColor" font-size="9.5" opacity="0.85">crash leaves temp garbage</text>
+    <text x="316" y="122" fill="currentColor" font-size="9.5" font-weight="700">final path absent or complete</text>
+    <text x="316" y="148" fill="currentColor" font-size="9.5" opacity="0.85">reader never sees partial data</text>
+    <rect x="588" y="52" width="280" height="122" rx="9" fill="currentColor" opacity="0.13"/>
+    <rect x="588" y="52" width="280" height="122" rx="9" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <text x="604" y="76" fill="currentColor" font-size="10.5" font-weight="700">Temp, verify, rename</text>
+    <text x="604" y="102" fill="currentColor" font-size="9.5" opacity="0.85">row count and checksum checked</text>
+    <text x="604" y="122" fill="currentColor" font-size="9.5" font-weight="700">complete implies correct</text>
+    <text x="604" y="148" fill="currentColor" font-size="9.5" opacity="0.85">the one to build</text>
+    <text x="12" y="206" fill="currentColor" font-size="9.5" opacity="0.82">Where the object store has no atomic rename, commit a manifest instead — the property you are buying is the same.</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### What exactly makes a backfill idempotent?
+
+Three properties together: a deterministic key from the inputs, a write that replaces rather than appends, and no dependence on anything outside the declared inputs. Miss any one and re-running the same window produces a different result — a duplicated partition, an appended set of rows, or a different number because a factor table moved on. The three are cheap to design in and expensive to retrofit, because retrofitting means rewriting history that was produced under the old rules.
+
+### How do I backfill safely while the scheduled pipeline is running?
+
+Partition-level isolation plus an advisory lock per partition. Because each partition's output path is derived from its key, a backfill and a scheduled run touching different partitions cannot collide. Where they might touch the same partition, the lock makes one wait rather than both writing. What does not work is a global "backfill in progress" flag, which serialises everything and encourages people to work around it.
+
+### Should a backfill re-use the factor versions of the original run?
+
+Yes if you are reproducing a published figure, no if you are deliberately restating. Those are different operations and should be invoked differently — an as-of replay pins the original factor set and must reproduce the published number exactly, while a restatement adopts new factors and produces a different, disclosed number. Conflating them is how a routine backfill silently changes a published total.
+
+### How do I verify a backfill actually reproduced the original?
+
+Compare digests, not summaries. Recompute the output for a window whose original artefacts still exist and compare content digests; matching totals with differing digests means something non-deterministic is in play — ordering, floating-point reduction order, an unseeded draw — and is worth finding before it matters. Where exact equality is genuinely unattainable, compare against a stated tolerance and record it.
+
+### What is the right size for a backfill window?
+
+Large enough to amortise setup, small enough to fail cheaply and to fit within any locking or resource budget. In practice a month of tiles is a comfortable unit for satellite MRV: it matches the reporting granularity, keeps a failed batch to a bounded recompute, and produces partitions of a workable size. Chain windows rather than launching one enormous job, so a failure at 80% does not discard the first 80%.
 
 ## Related guides
 

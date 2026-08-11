@@ -252,7 +252,7 @@ def apply_cloud_mask_lazy(
 
 Memory bounds are enforced by computing masks in parallel with spectral indices (NDVI, EVI, NBR) using `xarray.apply_ufunc` with `dask="parallelized"`. This prevents intermediate-array materialization and caps worker memory at roughly `chunk_size * n_bands * 4 bytes`. For multi-zone projects spanning several UTM zones, switch the target CRS to an Albers Equal-Area Conic projection to maintain continuous area preservation — the same equal-area constraint that governs [spatial modeling and carbon stock validation](https://www.spatialpipelineengineering.org/spatial-modeling-carbon-stock-validation/) downstream.
 
-<svg viewBox="0 0 760 300" role="img" aria-labelledby="tl-t tl-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+<svg viewBox="0 -11 760 262" role="img" aria-labelledby="tl-t tl-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
   <title id="tl-t">Wall-clock comparison of a synchronous tile loop versus the async plus Dask model</title>
   <desc id="tl-d">Two timelines share one wall-clock axis. The synchronous loop runs every step in series for each tile — a long idle network wait to fetch the COG, then read, reproject and mask — repeated tile after tile, so memory climbs until a worker is killed by an out-of-memory error and the scene is dropped; it reaches the far-right finish line. The async plus Dask model overlaps work: COG headers are fetched concurrently on the event loop, windowed reads run in parallel on the Dask thread pool, and masking with spectral indices is deferred to a single lazy compute. It crosses the finish line far earlier, and the gap between the two finish lines is marked as wall-clock saved.</desc>
   <defs>
@@ -330,6 +330,36 @@ Memory bounds are enforced by computing masks in parallel with spectral indices 
     <path d="M148 214 H744" fill="none" stroke="currentColor" stroke-width="1.3" marker-end="url(#tl-arrow)"/>
     <text x="148" y="232" fill="currentColor" font-size="9" opacity="0.8" text-anchor="start">t₀</text>
     <text x="744" y="232" fill="currentColor" font-size="9.5" opacity="0.85" text-anchor="end">wall-clock time →</text>
+  </g>
+</svg>
+
+<svg viewBox="0 -4 890 236" role="img" aria-labelledby="io-t io-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="io-t">Where the time actually goes in a tile-processing run</title>
+  <desc id="io-d">A stacked breakdown of wall-clock time for one thousand tile-months. Object-store latency and transfer account for 62 percent. Decompression accounts for 18 percent. The actual computation accounts for 11 percent. Serialisation between tasks accounts for 6 percent. Scheduler overhead accounts for 3 percent. A panel notes that optimising the computation — the part engineers instinctively profile — addresses eleven percent of the run, while concurrency of requests, range-read alignment, and compression choice address eighty percent.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">The computation is 11% of the run</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Wall-clock breakdown over 1 000 tile-months.</text>
+  </g>
+  <g>
+    <rect x="12" y="56" width="537" height="42" rx="4" fill="#f3a712" opacity="0.38"/>
+    <rect x="549" y="56" width="156" height="42" rx="4" fill="currentColor" opacity="0.28"/>
+    <rect x="705" y="56" width="95" height="42" rx="4" fill="currentColor" opacity="0.2"/>
+    <rect x="800" y="56" width="52" height="42" rx="4" fill="currentColor" opacity="0.13"/>
+    <rect x="852" y="56" width="26" height="42" rx="4" fill="currentColor" opacity="0.08"/>
+    <text x="280" y="82" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-weight="700" fill="currentColor">object-store latency &amp; transfer · 62%</text>
+    <text x="627" y="82" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">decompress 18%</text>
+    <text x="752" y="82" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" fill="currentColor">compute 11%</text>
+  </g>
+  <g font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.78">
+    <text x="878" y="114" text-anchor="end">serialise 6%</text>
+    <text x="878" y="128" text-anchor="end">scheduler 3%</text>
+  </g>
+  <g font-family="system-ui, sans-serif">
+    <rect x="12" y="142" width="856" height="76" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="12" y="142" width="856" height="76" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="28" y="166" fill="currentColor" font-size="10" font-weight="700">Profile the run, not the function.</text>
+    <text x="28" y="190" fill="currentColor" font-size="9.5" opacity="0.85">Request concurrency, range-read alignment to internal blocks, and compression choice address 80% of the time.</text>
+    <text x="28" y="208" fill="currentColor" font-size="9.5" opacity="0.85">Vectorising the inner loop addresses eleven percent of it, and is where most optimisation effort goes.</text>
   </g>
 </svg>
 
@@ -414,6 +444,36 @@ Final pipeline execution pattern:
 6. **Submit** — aggregate monthly proxies and forward the audit JSON to the MRV inventory for registry verification.
 
 By decoupling async ingestion from lazy compute, enforcing deterministic spatial alignment, and embedding compliance gates at the tile level, this architecture delivers a production-ready MRV foundation. It eliminates blocking I/O, caps memory allocation, and guarantees reproducible, auditable outputs required for corporate carbon accounting and regulatory verification.
+
+## Frequently Asked Questions
+
+### How much request concurrency should a worker use against object storage?
+
+More than feels comfortable, because the bottleneck is latency rather than bandwidth. A single sequential range read at 40 milliseconds per request spends almost all its time waiting; 16 to 64 concurrent requests per worker typically saturate the available throughput. Push it too far and you meet the provider's request-rate limits, which manifest as slow-down responses rather than errors — so back off adaptively and log the rate, because a silently throttled run just looks slow.
+
+### Does asynchronous I/O help if the work is CPU-bound?
+
+Only if it genuinely is CPU-bound, which is rarer than assumed — the breakdown above puts computation at roughly a tenth of the run. Measure before restructuring: if reads dominate, async concurrency is the highest-leverage change available; if decompression dominates, the answer is a cheaper codec or fewer bytes fetched; if computation genuinely dominates, async adds complexity for nothing and more workers is the simpler answer.
+
+### How do I avoid re-fetching the same scene across overlapping tasks?
+
+Align the task partition to the data layout so overlap is minimal, and cache at the worker rather than at the task. Tasks that each fetch a full scene to use a fraction of it will re-fetch the same bytes many times; tasks partitioned along the file's own tiling read disjoint ranges. Where overlap is unavoidable — a moving-window operation, for instance — a small per-worker LRU cache keyed on the byte range removes most of the duplication.
+
+### Should compositing happen before or after masking?
+
+Masking first, always. Compositing over unmasked data lets cloud and shadow contaminate the composite in a way no later step can remove, and the contamination is systematic rather than random because clouds are not randomly distributed in time. The cost is that masking first means carrying more arrays through the pipeline, which is a memory question with a straightforward answer — smaller chunks — rather than a correctness one.
+
+### What does a stalled run usually turn out to be?
+
+Throttling or a straggler, in roughly equal measure. Throttling shows as uniformly slow progress with no failed tasks and elevated retry counts; a straggler shows as a run that reaches 99% quickly and then sits. Both are visible in the operational signals if you record per-task duration and retry counts, and invisible if you only record run status — which is the argument for the data and operational signal classes described under [MRV pipeline observability and failure modes](https://www.spatialpipelineengineering.org/pipeline-orchestration-compliance-reference/mrv-pipeline-observability-and-failure-modes/).
+
+### How do I keep a long run from losing its whole progress to one bad tile?
+
+Isolate failures at the task boundary and let the run continue, then fail the run at the end on the completeness assertion rather than at the first exception. A single corrupt tile should produce one failed partition and a recorded reason, not an aborted run that discards several hours of completed work. The completeness check is what turns that tolerance into safety: the run still fails, but it fails after preserving everything that succeeded.
+
+### Does an async client help when the bottleneck is the provider's rate limit?
+
+No, and it can hurt. Once the limit is the constraint, additional concurrency produces throttling responses rather than throughput, and aggressive retries can escalate a throttle into a block. The productive responses are to reduce bytes fetched — better range alignment, fewer bands, a coarser overview where appropriate — and to spread the work over time rather than over more connections.
 
 ## Related guides
 

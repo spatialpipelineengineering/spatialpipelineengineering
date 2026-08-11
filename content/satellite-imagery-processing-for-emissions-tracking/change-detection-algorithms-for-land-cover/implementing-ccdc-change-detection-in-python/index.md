@@ -299,6 +299,52 @@ def detect_stack_breaks(
 
 The nested Python loop is written for clarity; in production the per-pixel kernel is the unit of parallelism, dispatched over chunked tiles with `xarray.apply_ufunc` and Dask so the same logic scales across continental extents. What must not change is the confirmation discipline: a break is never recorded from a single observation, and the magnitude is reported in the pixel's own RMSE units so it stays comparable when aggregated.
 
+<svg viewBox="0 -4 880 232" role="img" aria-labelledby="seg-t seg-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="seg-t">Segmented harmonic fitting across a disturbance and a recovery</title>
+  <desc id="seg-d">A time series of a vegetation index over eight years with three fitted segments. Segment one, from 2024 to mid-2027, is a stable harmonic fit oscillating around 0.78. A break is detected in mid-2027 when consecutive residuals exceed the threshold. Segment two, from late 2027 to 2029, is fitted separately at a lower level around 0.34 with a rising trend. A second break in 2030 begins segment three, fitted around 0.61 and still rising. A note explains that fitting a single model across the whole series would produce a poor fit everywhere and a break nowhere, and that the segment boundaries are the output rather than a preprocessing detail.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">The segment boundaries are the output</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">A single model across the whole series fits badly everywhere and breaks nowhere.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1" opacity="0.22">
+    <line x1="70" y1="62" x2="700" y2="62"/><line x1="70" y1="112" x2="700" y2="112"/><line x1="70" y1="162" x2="700" y2="162"/>
+  </g>
+  <g stroke="currentColor" stroke-width="1.3">
+    <line x1="70" y1="52" x2="70" y2="192"/>
+    <line x1="70" y1="192" x2="700" y2="192"/>
+  </g>
+  <g font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.72">
+    <text x="62" y="66" text-anchor="end">0.9</text>
+    <text x="62" y="116" text-anchor="end">0.6</text>
+    <text x="62" y="166" text-anchor="end">0.3</text>
+    <text x="70" y="210" text-anchor="middle">2024</text>
+    <text x="306" y="210" text-anchor="middle">2027</text>
+    <text x="543" y="210" text-anchor="middle">2030</text>
+    <text x="700" y="210" text-anchor="middle">2032</text>
+  </g>
+  <polyline points="70,80 100,72 130,88 160,80 190,74 220,90 250,82 280,76" fill="none" stroke="currentColor" stroke-width="2.4"/>
+  <polyline points="330,168 360,160 390,166 420,152 450,146 480,152 510,138" fill="none" stroke="currentColor" stroke-width="2.4"/>
+  <polyline points="580,116 610,106 640,114 670,100 700,96" fill="none" stroke="currentColor" stroke-width="2.4"/>
+  <line x1="300" y1="52" x2="300" y2="192" stroke="#f3a712" stroke-width="1.8" stroke-dasharray="5,4"/>
+  <line x1="552" y1="52" x2="552" y2="192" stroke="#f3a712" stroke-width="1.8" stroke-dasharray="5,4"/>
+  <g font-family="system-ui, sans-serif" font-size="9" font-weight="700">
+    <text x="176" y="60" text-anchor="middle" fill="currentColor">segment 1 · stable</text>
+    <text x="420" y="128" text-anchor="middle" fill="currentColor">segment 2 · low, rising</text>
+    <text x="640" y="80" text-anchor="middle" fill="currentColor">segment 3 · recovering</text>
+    <text x="306" y="46" text-anchor="middle" fill="#f3a712">break</text>
+    <text x="558" y="46" text-anchor="middle" fill="#f3a712">break</text>
+  </g>
+  <g font-family="system-ui, sans-serif">
+    <rect x="716" y="66" width="152" height="106" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="716" y="66" width="152" height="106" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="730" y="90" fill="currentColor" font-size="9.5" font-weight="700">Refit, do not extend</text>
+    <text x="730" y="112" fill="currentColor" font-size="9" opacity="0.85">A model fitted before</text>
+    <text x="730" y="126" fill="currentColor" font-size="9" opacity="0.85">the break keeps predicting</text>
+    <text x="730" y="140" fill="currentColor" font-size="9" opacity="0.85">a forest that is gone —</text>
+    <text x="730" y="158" fill="#f3a712" font-size="9" font-weight="700">and never stops alerting.</text>
+  </g>
+</svg>
+
 ## Compliance Gating & Audit Trail Generation
 
 Confirmed breaks are only useful to a carbon programme once they become area, and the conversion is where geometry errors turn into phantom emissions. Reproject the break raster to an equal-area CRS such as `EPSG:6933` before counting so each changed pixel contributes an honest surface area; counting in `EPSG:4326` inflates high-latitude change and understates the tropics. The manifest embedded by the transformation step carries the harmonic order, the consecutive-observation count `k`, and the z-threshold — the three parameters a verifier must know to reproduce the result — and those attributes flow into [MRV data lineage and provenance tracking](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/mrv-data-lineage-provenance-tracking/), where they become the queryable record an auditor traces.
@@ -322,6 +368,55 @@ Deploy the routine within an async tile-processing framework on a fixed ingest �
 6. **Submit.** Forward confirmed breaks to the alerting layer behind the [deforestation alert generation pipelines](https://www.spatialpipelineengineering.org/satellite-imagery-processing-for-emissions-tracking/deforestation-alert-generation-pipelines/), and feed the change-area totals into the baseline logic exposed by [threshold tuning for carbon stock baselines](https://www.spatialpipelineengineering.org/spatial-modeling-carbon-stock-validation/threshold-tuning-for-carbon-stock-baselines/).
 
 By fitting the seasonal cycle explicitly, scaling the anomaly test to each pixel's own noise, and refusing to record a break until consecutive observations agree, a CCDC implementation converts a noisy reflectance stack into dated, magnitude-tagged, area-mappable change that survives third-party verification and anchors automated MRV.
+
+<svg viewBox="0 -4 880 210" role="img" aria-labelledby="tune-t tune-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="tune-t">The three parameters that control a sequential detector, and what each trades</title>
+  <desc id="tune-d">Three parameters with their effects. The residual threshold in sigma units controls how far an observation must fall from the fitted model to count as anomalous: lower is more sensitive and more false-positive prone. The consecutive count controls how many anomalous observations in a row are needed to declare a break: higher is more robust and slower to confirm. The minimum segment length controls how soon after a break a new model may be fitted: longer is more stable and blind to rapid re-disturbance. A panel notes that the three interact, that tuning them one at a time on a labelled sample is the only reliable method, and that the tuned values are compliance-relevant parameters requiring version control.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Three knobs, and they interact</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Tune on a labelled sample, one at a time, then version the result.</text>
+    <rect x="12" y="52" width="280" height="120" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="12" y="52" width="280" height="120" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="28" y="76" fill="currentColor" font-size="10.5" font-weight="700">Residual threshold (σ)</text>
+    <text x="28" y="100" fill="currentColor" font-size="9.5" opacity="0.85">how far from the model counts</text>
+    <text x="28" y="124" fill="currentColor" font-size="9.5" font-weight="700">lower → sensitive, noisier</text>
+    <text x="28" y="150" fill="currentColor" font-size="9" opacity="0.75">interacts with mask quality</text>
+    <rect x="300" y="52" width="280" height="120" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="300" y="52" width="280" height="120" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="316" y="76" fill="currentColor" font-size="10.5" font-weight="700">Consecutive count</text>
+    <text x="316" y="100" fill="currentColor" font-size="9.5" opacity="0.85">how many anomalies in a row</text>
+    <text x="316" y="124" fill="currentColor" font-size="9.5" font-weight="700">higher → robust, slower</text>
+    <text x="316" y="150" fill="currentColor" font-size="9" opacity="0.75">sets confirmation latency</text>
+    <rect x="588" y="52" width="280" height="120" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="588" y="52" width="280" height="120" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="604" y="76" fill="currentColor" font-size="10.5" font-weight="700">Minimum segment length</text>
+    <text x="604" y="100" fill="currentColor" font-size="9.5" opacity="0.85">how soon a refit is allowed</text>
+    <text x="604" y="124" fill="currentColor" font-size="9.5" font-weight="700">longer → stable, blind to re-disturbance</text>
+    <text x="604" y="150" fill="#f3a712" font-size="9" font-weight="700">matters most for salvage logging</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### How many consecutive anomalous observations should trigger a break?
+
+Enough that a single cloud-contaminated observation cannot fire it, typically three to six depending on observation density. Fewer and residual cloud produces a stream of false breaks; more and genuine change is confirmed too late to be useful for alerting. The parameter interacts with the masking quality: a permissive mask needs a higher consecutive count to compensate, which means tuning the two together rather than separately.
+
+### Should the harmonic model use one, two, or three harmonics?
+
+Two is the usual default and covers annual plus semi-annual seasonality, which is what most vegetation shows. One harmonic underfits in systems with a bimodal growing season and produces systematic residuals that look like drift. Three harmonics fit the noise as well as the signal unless observation density is high, and they consume degrees of freedom that the break test needs. Choose by comparing fit residuals on a stable reference area, and record the choice.
+
+### What happens at the start and end of the series?
+
+Both ends are weak and should be reported as such. A break near the start has too little history to establish the baseline; a break near the end has too few observations to confirm persistence. Most implementations exclude a buffer at each end from the reported results, and the width of that buffer is a real limitation on the monitoring claim — a project cannot detect change in the most recent weeks with the same confidence as in the middle of its record.
+
+### How do I handle a pixel with too few observations to fit?
+
+Record it as undetectable for that period rather than falling back to a simpler method silently. A mixed pipeline where some pixels are assessed by a fitted model and others by a bi-temporal difference produces a map whose confidence varies spatially in a way nothing in the output reveals. If a fallback is necessary, carry a method field per pixel so downstream aggregation can weight or exclude accordingly.
+
+### Can the fitted coefficients be reused as features?
+
+Yes, and it is one of the more useful by-products. The segment-level coefficients — level, slope, and harmonic amplitudes — summarise a pixel's behaviour compactly and are strong inputs to a land-cover classifier or a biomass model, far better than a single-date composite. Store them alongside the break dates rather than discarding them after detection; recomputing them later means re-reading the whole archive.
 
 ## Related guides
 

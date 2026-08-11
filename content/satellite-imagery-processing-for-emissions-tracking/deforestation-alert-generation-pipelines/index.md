@@ -91,6 +91,47 @@ Three failure modes dominate production alert pipelines. Each has a distinct tec
 
 3. **Static thresholds across mismatched phenology.** A fixed spectral threshold cannot generalize across biomes. A NDVI drop of `0.2` may indicate selective logging in the Amazon yet represent normal dry-season senescence in the Cerrado or harvest in a managed plantation. Hard-coding one threshold guarantees over-detection in seasonally dynamic landscapes and under-detection in dense evergreen canopy where genuine clearing produces a smaller relative drop. The consequence is systematic, directional bias in activity data — precisely the misstatement an auditor probes. The resolution is to calibrate thresholds per biome and sensor against historical ground-truth (GLAD alerts, PRODES) and to expose them as validated configuration rather than literals buried in code.
 
+<svg viewBox="0 -4 900 230" role="img" aria-labelledby="lat-t lat-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="lat-t">Where the latency between an event and an actionable alert actually goes</title>
+  <desc id="lat-d">A breakdown of the interval between a clearing event on the ground and an alert a ranger can act on. Waiting for the next satellite pass takes a median of 3 days. Waiting for that pass to be cloud-free takes a further median of 9 days in a humid tropical setting. Provider processing and publication takes 1 day. The detection run takes 4 hours. Confirmation on a second clear observation takes a further median of 8 days. Dispatch and triage take 1 day. The total median is 22 days, of which 17 are weather and orbit rather than engineering. A panel notes that adding radar collapses the two cloud-waiting terms and is the only change that meaningfully shortens the chain.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">17 of the 22 days are weather and orbit</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Median interval from clearing on the ground to an alert a ranger can act on.</text>
+  </g>
+  <g>
+    <rect x="12" y="56" width="94" height="32" rx="4" fill="currentColor" opacity="0.22"/>
+    <rect x="108" y="56" width="282" height="32" rx="4" fill="#f3a712" opacity="0.38"/>
+    <rect x="392" y="56" width="32" height="32" rx="4" fill="currentColor" opacity="0.22"/>
+    <rect x="426" y="56" width="10" height="32" rx="3" fill="currentColor" opacity="0.3"/>
+    <rect x="438" y="56" width="250" height="32" rx="4" fill="#f3a712" opacity="0.38"/>
+    <rect x="690" y="56" width="32" height="32" rx="4" fill="currentColor" opacity="0.22"/>
+  </g>
+  <g font-family="system-ui, sans-serif" font-size="9" fill="currentColor">
+    <text x="59" y="106" text-anchor="middle">next pass</text>
+    <text x="59" y="120" text-anchor="middle" opacity="0.75">3 d</text>
+    <text x="249" y="106" text-anchor="middle" font-weight="700" fill="#f3a712">wait for a cloud-free pass</text>
+    <text x="249" y="120" text-anchor="middle" opacity="0.8">9 d</text>
+    <text x="408" y="106" text-anchor="middle">publish</text>
+    <text x="408" y="120" text-anchor="middle" opacity="0.75">1 d</text>
+    <text x="431" y="140" text-anchor="middle" opacity="0.75">detect 4 h</text>
+    <text x="563" y="106" text-anchor="middle" font-weight="700" fill="#f3a712">confirm on a 2nd clear pass</text>
+    <text x="563" y="120" text-anchor="middle" opacity="0.8">8 d</text>
+    <text x="706" y="106" text-anchor="middle">dispatch</text>
+    <text x="706" y="120" text-anchor="middle" opacity="0.75">1 d</text>
+  </g>
+  <g font-family="system-ui, sans-serif">
+    <rect x="744" y="52" width="144" height="80" rx="9" fill="currentColor" opacity="0.1"/>
+    <rect x="744" y="52" width="144" height="80" rx="9" fill="none" stroke="currentColor" stroke-width="1.6"/>
+    <text x="816" y="80" text-anchor="middle" fill="currentColor" font-size="17" font-weight="700">22 days</text>
+    <text x="816" y="102" text-anchor="middle" fill="currentColor" font-size="9" opacity="0.8">median, humid tropics</text>
+    <text x="816" y="120" text-anchor="middle" fill="currentColor" font-size="9" opacity="0.8">p90 is far worse</text>
+    <rect x="12" y="166" width="876" height="56" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="12" y="166" width="876" height="56" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="28" y="188" fill="currentColor" font-size="10" font-weight="700">Optimising the detection run addresses four hours of a twenty-two day chain.</text>
+    <text x="28" y="210" fill="currentColor" font-size="9.5" opacity="0.85">Adding radar collapses both amber bars at once, which is why fusion is an alerting decision before it is an accuracy one.</text>
+  </g>
+</svg>
+
 ## Deterministic Implementation Architecture
 
 Scaling alert generation across continental basins requires asynchronous orchestration and out-of-core array computing. The pattern below uses Prefect for declarative workflow management and retry semantics, Dask for chunked raster operations that never load a full tile into memory, and `structlog` for audit-ready telemetry. Every task either emits an aligned, validated artifact or raises — there is no silent pass-through, because an alert produced from unvalidated input is worse than no alert at all.
@@ -192,6 +233,78 @@ A detector that is statistically sound but undocumented still fails an audit; te
 - **Lineage attachment → auditable provenance (CSRD ESRS E1).** Emitting alerts as GeoParquet or STAC-compliant GeoJSON in explicit `EPSG:4326` with acquisition timestamps, threshold values, and confidence scores creates the immutable provenance chain that CSRD ESRS E1 disclosures are scrutinized for, and that feeds [carbon credit registry data integration](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/carbon-credit-registry-data-integration/) submissions. Where the EU Deforestation Regulation applies, the same polygon export — at ≤10 m positional accuracy with explicit coordinates — is what satisfies its geolocation requirement.
 
 For debugging, three silent failures deserve dedicated diagnostics. Phantom boundary alerts that trace tile seams indicate residual registration error — validate that baseline and current share an identical affine transform after alignment before trusting any edge detection. Alert clusters that coincide with masked regions on the prior acquisition reveal cloud leakage — cross-check that the validity mask was dilated to cover shadow and cirrus adjacency. And a confidence distribution that collapses toward the threshold boundary signals a miscalibrated detector — trend the per-tile alert rate over time so a drifting upstream export or a quietly changed reflectance product surfaces as a regression long before it crosses an audit tolerance. A practical post-processing step intersects alert polygons with protected-area boundaries, concession maps, and historical deforestation layers (aligned with [IPCC AFOLU guidance](https://www.ipcc-nggip.iges.or.jp/public/2019rf/pdf/4_Volume4/19R_V4_Ch04_Forest%20Land.pdf)) to suppress known false positives before submission.
+
+<svg viewBox="0 -4 880 238" role="img" aria-labelledby="thr-t thr-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="thr-t">Choosing an alert threshold from the cost of each error, not from a score</title>
+  <desc id="thr-d">A curve of false alerts per week against missed events per week as the detection threshold varies. At a permissive threshold there are 140 false alerts and 2 missed events per week. At a strict threshold there are 6 false alerts and 31 missed events. A marked operating point at 24 false alerts and 9 missed events is annotated with the reasoning: a field team can triage roughly 30 alerts per week, so a rate above that is discarded wholesale and effectively becomes a missed-event rate too. A panel states that the right threshold is set by response capacity rather than by an accuracy metric.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">The threshold is a capacity decision</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Above the team's triage capacity, extra alerts are discarded wholesale — and become misses.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1" opacity="0.22">
+    <line x1="80" y1="66" x2="560" y2="66"/><line x1="80" y1="112" x2="560" y2="112"/><line x1="80" y1="158" x2="560" y2="158"/>
+  </g>
+  <rect x="80" y="52" width="480" height="30" fill="#f3a712" opacity="0.14"/>
+  <text x="552" y="72" text-anchor="end" font-family="system-ui, sans-serif" font-size="9" font-weight="700" fill="currentColor" opacity="0.8">above 30/week: triage collapses</text>
+  <g stroke="currentColor" stroke-width="1.3">
+    <line x1="80" y1="52" x2="80" y2="190"/>
+    <line x1="80" y1="190" x2="560" y2="190"/>
+  </g>
+  <g font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.72">
+    <text x="72" y="70" text-anchor="end">140</text>
+    <text x="72" y="116" text-anchor="end">80</text>
+    <text x="72" y="162" text-anchor="end">30</text>
+    <text x="72" y="194" text-anchor="end">0</text>
+    <text x="80" y="210" text-anchor="middle">2</text>
+    <text x="240" y="210" text-anchor="middle">12</text>
+    <text x="400" y="210" text-anchor="middle">22</text>
+    <text x="560" y="210" text-anchor="middle">31</text>
+    <text x="320" y="226" text-anchor="middle" font-weight="600">missed events per week</text>
+  </g>
+  <text x="26" y="130" font-family="system-ui, sans-serif" font-size="9" font-weight="600" fill="currentColor" opacity="0.72" transform="rotate(-90 26 130)" text-anchor="middle">false alerts per week</text>
+  <polyline points="80,62 144,110 208,142 272,160 336,172 400,180 464,185 560,188" fill="none" stroke="currentColor" stroke-width="2.8"/>
+  <circle cx="256" cy="166" r="6.5" fill="none" stroke="#f3a712" stroke-width="2.6"/>
+  <g font-family="system-ui, sans-serif" font-size="9.5">
+    <text x="272" y="150" fill="#f3a712" font-weight="700">operating point</text>
+    <text x="272" y="164" fill="currentColor" opacity="0.85">24 false · 9 missed</text>
+    <rect x="596" y="76" width="272" height="100" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="596" y="76" width="272" height="100" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="612" y="100" fill="currentColor" font-size="10" font-weight="700">Ask the field team first</text>
+    <text x="612" y="124" fill="currentColor" font-size="9.5" opacity="0.85">How many alerts can you visit</text>
+    <text x="612" y="140" fill="currentColor" font-size="9.5" opacity="0.85">in a week? That number sets</text>
+    <text x="612" y="156" fill="currentColor" font-size="9.5" opacity="0.85">the threshold — not an F-score.</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### What alert latency is realistic in the humid tropics?
+
+Around three weeks median with optical data alone, and considerably worse at the ninetieth percentile, because most of the interval is waiting for two cloud-free passes rather than computing anything. Quoting a latency figure without the confirmation requirement and the local cloud climatology is misleading — the same pipeline that delivers in four days over a dry basin delivers in a month over a montane forest.
+
+### How should the alert threshold be chosen?
+
+From the response capacity of whoever acts on the alerts. An alert stream larger than a field team can triage is not a more sensitive system; it is a system whose output is discarded, which converts false alerts into missed events. Ask how many alerts per week can actually be visited, set the threshold to fill that budget, and report the resulting miss rate honestly rather than optimising a score nobody consumes.
+
+### Should low-confidence alerts be published at all?
+
+Yes, as a separate tier with its own label, never mixed into the actionable stream. A confidence tier lets analysts do bulk pattern work — spotting a cluster that individually failed the threshold — while keeping the dispatch queue at a workable size. What causes harm is publishing one undifferentiated stream and letting the recipient discover its precision empirically.
+
+### How do alerts relate to the official monitoring figures?
+
+They are early warning, not measurement. Alerts are tuned for latency and recall on a coarse spatial unit; the monitoring figure is tuned for accuracy and area estimation with a full accuracy assessment. Reconciling them at the end of each period is useful — a large divergence means one of the two is miscalibrated — but presenting alert counts as a measured area is a category error that a verifier will catch immediately.
+
+### What causes most false alerts in practice?
+
+Residual cloud and shadow, seasonal senescence in deciduous and semi-deciduous systems, and flooding, in roughly that order. All three are systematic rather than random, so they cluster in time and space and can be suppressed with targeted rules — a phenology model, a water mask, a tightened cloud test — far more effectively than by raising the global threshold, which trades away real detections everywhere to fix a problem confined to part of the landscape.
+
+### Should alerts be published for areas outside the monitored project?
+
+Only with a clear label, and never mixed with project alerts in the same stream. Landscape-wide alerts are valuable for context and for leakage monitoring, but they carry different accuracy characteristics and different response obligations. Keeping them in separate streams with separate confidence tiers prevents the common failure where a recipient acts on a landscape alert as if it carried project-grade confirmation.
+
+### How long should an alert stay open before it is closed unresolved?
+
+Long enough for two clear observations at the local cloud climatology, and then closed explicitly with that outcome recorded. An alert left indefinitely open is indistinguishable from one nobody looked at, and a queue of them erodes trust in the whole stream. Closing with an explicit unresolved status preserves the record and keeps the open queue an accurate picture of outstanding work.
 
 ## Conclusion
 

@@ -104,7 +104,7 @@ ESG verification bodies and voluntary carbon registries now mandate cryptographi
     <!-- arrow labels -->
     <g fill="currentColor" font-size="8.5" opacity="0.7">
       <text x="331" y="148">pass</text>
-      <text x="693" y="148">emit · HTTP</text>
+      <text x="691" y="148" text-anchor="middle" font-size="8">emit</text>
       <text x="845" y="148">query</text>
       <text x="266" y="232" text-anchor="start">fail</text>
     </g>
@@ -162,6 +162,31 @@ def validate_bbox(bbox: dict, dataset: str) -> None:
 ```
 
 Wiring this gate into Airflow's `on_failure_callback` or a Prefect task guard ensures that lineage only records states that have already passed spatial validation. The CRS contract enforced here is the same one detailed in [how to align WGS84 to a local CRS in Python](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/geospatial-coordinate-reference-systems-crs-alignment/how-to-align-wgs84-to-local-crs-in-python-for-carbon-mapping/), applied at the moment of emission rather than at ingestion.
+
+<svg viewBox="0 -4 880 232" role="img" aria-labelledby="facet-t facet-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="facet-t">Standard OpenLineage facets against the spatial facet an MRV pipeline must add</title>
+  <desc id="facet-d">Two groups. The standard facets that ship with OpenLineage cover schema, data source, column lineage, and data quality metrics — enough to answer which table fed which table. The custom spatial facet adds the coordinate reference system, the bounding box, the temporal window, the source registry identifier, and a coordinate-validation hash. A panel explains that without the spatial facet a lineage graph can prove a dataset was used without proving it was used in the right coordinate system, which is precisely the question a spatial audit asks.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Standard facets prove usage; the spatial facet proves correctness</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">A geospatial audit asks a question the base specification does not model.</text>
+    <rect x="12" y="52" width="418" height="152" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="12" y="52" width="418" height="152" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="28" y="76" fill="currentColor" font-size="10.5" font-weight="700">Standard facets</text>
+    <text x="28" y="100" fill="currentColor" font-size="9.5" opacity="0.85">schema · fields and types</text>
+    <text x="28" y="120" fill="currentColor" font-size="9.5" opacity="0.85">dataSource · where it came from</text>
+    <text x="28" y="140" fill="currentColor" font-size="9.5" opacity="0.85">columnLineage · field-level derivation</text>
+    <text x="28" y="160" fill="currentColor" font-size="9.5" opacity="0.85">dataQualityMetrics · row counts, nulls</text>
+    <text x="28" y="186" fill="currentColor" font-size="9.5" font-weight="700">answers: which dataset fed which</text>
+    <rect x="450" y="52" width="418" height="152" rx="9" fill="currentColor" opacity="0.12"/>
+    <rect x="450" y="52" width="418" height="152" rx="9" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <text x="466" y="76" fill="currentColor" font-size="10.5" font-weight="700">spatialProvenance facet</text>
+    <text x="466" y="100" fill="currentColor" font-size="9.5" opacity="0.85">crs · the analysis projection used</text>
+    <text x="466" y="120" fill="currentColor" font-size="9.5" opacity="0.85">bbox · extent after transformation</text>
+    <text x="466" y="140" fill="currentColor" font-size="9.5" opacity="0.85">temporalWindow · period covered</text>
+    <text x="466" y="160" fill="currentColor" font-size="9.5" opacity="0.85">crsValidationHash · the check that ran</text>
+    <text x="466" y="186" fill="#f3a712" font-size="9.5" font-weight="700">answers: and was it geometrically correct</text>
+  </g>
+</svg>
 
 ## Deterministic Transformation Logic
 
@@ -303,6 +328,75 @@ In production the emitter wraps each orchestration task so lineage is committed 
 6. **Submit** — emit the `START`/`COMPLETE` event pair to the collector and forward the registry payload downstream.
 
 For continental-scale runs, emit one event per chunk rather than per scene: align lineage emission to the same tiling the pipeline already uses for out-of-core I/O, so each Dask partition produces an addressable, hashed artifact with its own facet. Batch the HTTP dispatch behind a buffered transport (the client's `async` or `kafka` transport) to keep emission off the critical path, and back-pressure on collector failure rather than dropping events — a lost lineage record is an unverifiable artifact. Embedding this discipline at the orchestration layer is now a baseline control for enterprise MRV systems: it guarantees cryptographic traceability, prevents projection-induced calculation errors, and satisfies increasingly stringent ESG verification mandates.
+
+<svg viewBox="0 -4 880 224" role="img" aria-labelledby="ev-t ev-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="ev-t">Run event sequences and what an incomplete pair leaves in the lineage graph</title>
+  <desc id="ev-d">Three sequences. A successful run emits START then COMPLETE, producing a closed node with inputs, outputs, and facets. A failed run emits START then FAIL, producing a node marked failed with inputs recorded and no outputs, which is a complete and useful record. A crashed process emits START only, leaving a node permanently in the running state with inputs but neither outputs nor a terminal status — an orphan that makes the graph look incomplete forever. A panel states that emitting a terminal event from a finally block, and reaping stale running nodes on a schedule, are the two things that keep the graph honest.</desc>
+  <defs>
+    <marker id="ev-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+    </marker>
+  </defs>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Every START needs a terminal partner</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">An orphaned START is worse than no event: it makes the graph permanently incomplete.</text>
+    <text x="12" y="72" fill="currentColor" font-size="10" font-weight="700">Success</text>
+    <text x="12" y="122" fill="currentColor" font-size="10" font-weight="700">Failure</text>
+    <text x="12" y="172" fill="currentColor" font-size="10" font-weight="700">Crash</text>
+  </g>
+  <g font-family="system-ui, sans-serif" text-anchor="middle">
+    <rect x="120" y="52" width="112" height="30" rx="6" fill="currentColor" opacity="0.12"/>
+    <rect x="120" y="52" width="112" height="30" rx="6" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="176" y="72" fill="currentColor" font-size="9.5" font-weight="700">START</text>
+    <rect x="272" y="52" width="112" height="30" rx="6" fill="currentColor" opacity="0.12"/>
+    <rect x="272" y="52" width="112" height="30" rx="6" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="328" y="72" fill="currentColor" font-size="9.5" font-weight="700">COMPLETE</text>
+    <text x="560" y="72" fill="currentColor" font-size="9.5">closed node · inputs, outputs, facets</text>
+    <rect x="120" y="102" width="112" height="30" rx="6" fill="currentColor" opacity="0.12"/>
+    <rect x="120" y="102" width="112" height="30" rx="6" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="176" y="122" fill="currentColor" font-size="9.5" font-weight="700">START</text>
+    <rect x="272" y="102" width="112" height="30" rx="6" fill="currentColor" opacity="0.12"/>
+    <rect x="272" y="102" width="112" height="30" rx="6" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="328" y="122" fill="currentColor" font-size="9.5" font-weight="700">FAIL</text>
+    <text x="560" y="122" fill="currentColor" font-size="9.5">failed node · inputs recorded, no outputs — useful</text>
+    <rect x="120" y="152" width="112" height="30" rx="6" fill="currentColor" opacity="0.12"/>
+    <rect x="120" y="152" width="112" height="30" rx="6" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="176" y="172" fill="currentColor" font-size="9.5" font-weight="700">START</text>
+    <rect x="272" y="152" width="112" height="30" rx="6" fill="none" stroke="#f3a712" stroke-width="1.8" stroke-dasharray="5,3"/>
+    <text x="328" y="172" fill="#f3a712" font-size="9.5" font-weight="700">nothing</text>
+    <text x="566" y="172" fill="#f3a712" font-size="9.5" font-weight="700">orphan · running forever, graph never closes</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1.3" fill="none" marker-end="url(#ev-arrow)">
+    <line x1="232" y1="67" x2="270" y2="67"/><line x1="232" y1="117" x2="270" y2="117"/>
+    <line x1="232" y1="167" x2="270" y2="167" stroke-dasharray="4,3" opacity="0.6"/>
+  </g>
+  <g font-family="system-ui, sans-serif">
+    <rect x="12" y="196" width="856" height="24" rx="7" fill="currentColor" opacity="0.06"/>
+    <text x="28" y="213" fill="currentColor" font-size="9.5" font-weight="700">Emit the terminal event from a finally block, and reap stale running nodes on a schedule. Those two habits keep the graph honest.</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### Why does OpenLineage need a custom facet for spatial work?
+
+Because the base specification models datasets, jobs, and runs, not geometry. It can prove that a supplier table fed an emissions table; it cannot prove that the join happened in an equal-area projection, that the geometries were valid, or that the extent matched the declared project boundary. Those are the questions a spatial audit asks, so the pipeline must carry them as a custom facet. The facet is cheap to add and is what turns a general lineage graph into evidence for a geospatial claim.
+
+### Should lineage events be emitted synchronously or asynchronously?
+
+Asynchronously for throughput, but with a durable local buffer and a terminal event emitted from a `finally` block. Synchronous emission couples pipeline latency to the collector's availability, and a collector outage then either stalls the run or — worse — causes events to be dropped silently. Buffer locally, flush in the background, and treat a persistent flush failure as a pipeline failure rather than a warning, because a run whose lineage was never recorded is a run that cannot be defended.
+
+### What happens to the graph when a job crashes without emitting a terminal event?
+
+The run node stays in the running state indefinitely and the graph never closes around it, which makes every completeness query unreliable. Emit FAIL from a `finally` block so an exception still produces a terminal event, and run a scheduled reaper that marks runs stale after a bounded interval with an explicit `ABORTED` status. An orphaned node is materially worse than no node, because it looks like work in progress rather than work that never finished.
+
+### How much of the graph should be retained, and for how long?
+
+The nodes and facets for anything that contributed to a published figure must survive the full audit horizon; development and backfill experiments do not. Tag runs by purpose at emission and apply retention by tag, rather than retaining everything at the longest horizon or purging by age alone. Also store the facets beside the artefacts, since a lineage server is infrastructure that will be replaced at least once during a crediting period.
+
+### Can the lineage graph itself be the audit evidence?
+
+It is a large part of it, but not all. The graph proves which inputs produced which outputs through which code; it does not prove the outputs were correct, that the validation gates ran, or that a human authorised a documented exception. Pair the graph with the validation results and the signed manifest, and cross-reference them by run identifier so a verifier can move between the three without reconciling identifiers by hand.
 
 ## Related
 

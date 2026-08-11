@@ -112,6 +112,48 @@ Distributed ingestion fails in characteristic ways. Naming them up front lets th
 
 3. **Partial-batch corruption from unhandled transient errors.** Object-store throttling, truncated range reads, and expired credentials produce intermittent failures. Without bounded retry and explicit fallback routing, a single bad tile either aborts the batch or, worse, is silently skipped and never recorded — leaving a gap that no auditor can distinguish from genuine no-data. Root cause: treating network errors as fatal or as nonexistent rather than as a first-class, logged outcome. Observed impact: incomplete cloud-free composites and unaccounted spatial coverage in near-real-time products such as the [deforestation alert generation pipelines](https://www.spatialpipelineengineering.org/satellite-imagery-processing-for-emissions-tracking/deforestation-alert-generation-pipelines/) downstream.
 
+<svg viewBox="0 -4 900 230" role="img" aria-labelledby="chunk-t chunk-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="chunk-t">Chunk size against wall-clock time and peak memory for a tile mosaic</title>
+  <desc id="chunk-d">A chart with chunk edge length from 128 to 4096 pixels on the horizontal axis. Wall-clock time falls steeply from 512 seconds at 128 pixels to a minimum of 96 seconds around 1024, then rises again to 180 seconds at 4096 as memory pressure forces spilling. Peak memory per worker rises monotonically from 0.2 gigabytes to 11 gigabytes across the same range. A shaded band around 512 to 1024 pixels marks the practical window where wall-clock is near its minimum and memory stays inside a typical worker. An annotation notes that the left side is dominated by scheduler overhead and the right by spill-to-disk.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Chunk size has one good window and two bad tails</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Same mosaic, same cluster. Only the chunk edge changes.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1" opacity="0.22">
+    <line x1="80" y1="66" x2="620" y2="66"/><line x1="80" y1="110" x2="620" y2="110"/><line x1="80" y1="154" x2="620" y2="154"/>
+  </g>
+  <rect x="216" y="52" width="136" height="146" fill="currentColor" opacity="0.09"/>
+  <text x="284" y="68" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">practical window</text>
+  <g stroke="currentColor" stroke-width="1.3">
+    <line x1="80" y1="52" x2="80" y2="198"/>
+    <line x1="80" y1="198" x2="620" y2="198"/>
+  </g>
+  <g font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.72">
+    <text x="72" y="70" text-anchor="end">500 s</text>
+    <text x="72" y="114" text-anchor="end">330 s</text>
+    <text x="72" y="158" text-anchor="end">170 s</text>
+    <text x="80" y="216" text-anchor="middle">128</text>
+    <text x="216" y="216" text-anchor="middle">512</text>
+    <text x="352" y="216" text-anchor="middle">1024</text>
+    <text x="484" y="216" text-anchor="middle">2048</text>
+    <text x="620" y="216" text-anchor="middle">4096</text>
+  </g>
+  <polyline points="80,64 148,110 216,158 284,174 352,178 420,170 484,158 552,146 620,152" fill="none" stroke="currentColor" stroke-width="2.8"/>
+  <polyline points="80,196 148,194 216,190 284,184 352,176 420,160 484,132 552,96 620,58" fill="none" stroke="#f3a712" stroke-width="2.4" stroke-dasharray="7,4"/>
+  <g font-family="system-ui, sans-serif" font-size="9.5" font-weight="600">
+    <text x="596" y="140" fill="currentColor" text-anchor="end">wall clock</text>
+    <text x="596" y="70" fill="#f3a712" text-anchor="end">peak memory</text>
+    <text x="112" y="88" fill="currentColor" font-size="9" opacity="0.78">scheduler overhead</text>
+    <text x="500" y="186" fill="currentColor" font-size="9" opacity="0.78">spill to disk</text>
+    <rect x="644" y="96" width="244" height="82" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="644" y="96" width="244" height="82" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="660" y="120" fill="currentColor" font-size="9.5" font-weight="700">Match the chunk to the file</text>
+    <text x="660" y="142" fill="currentColor" font-size="9.5" opacity="0.85">Align chunks to the COG's internal</text>
+    <text x="660" y="158" fill="currentColor" font-size="9.5" opacity="0.85">block size and the reads become</text>
+    <text x="660" y="174" fill="currentColor" font-size="9.5" opacity="0.85">whole blocks instead of partials.</text>
+  </g>
+</svg>
+
 ## Deterministic Implementation Architecture
 
 The processor below installs a specific guard for each failure mode: explicit CRS and resolution targets defeat datum drift, `chunks="auto"` plus lazy reprojection bound memory, and exponential-backoff retry with explicit fallback routing turns transient errors into logged, replayable outcomes. Telemetry is emitted as structured JSON keyed by tile ID and compliance tag so every record maps back to a verification requirement; in larger deployments this handler is typically swapped for `structlog` writing the same fields.
@@ -250,6 +292,75 @@ Observability and compliance are the same activity here: the telemetry that help
 **Drift and provenance gating.** The explicit `reproject(resampling=Resampling.bilinear)` to a fixed CRS and resolution holds sub-pixel geospatial drift within roughly ±0.5 pixels, the tolerance commonly cited under **Verra VM0047** and **ART TREES** for cloud-free composite generation. For full data-integrity gating, extend the processor to compute SHA-256 hashes of raw COG headers and aligned outputs and store them alongside the audit trail, so a third-party verifier can confirm that the bytes that were processed are the bytes that were submitted.
 
 For authoritative methodology, consult the [GHG Protocol Corporate Standard](https://ghgprotocol.org/corporate-standard) and the [STAC Specification](https://stacspec.org/) for standardized metadata exchange.
+
+<svg viewBox="0 -4 880 224" role="img" aria-labelledby="spill-t spill-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="spill-t">Four distributed failure modes and the symptom each shows in a carbon run</title>
+  <desc id="spill-d">Four panels. Worker eviction under memory pressure appears as tasks that restart repeatedly and a run that completes with fewer partitions than expected. Straggler tiles appear as a run whose ninety-ninth percentile task time is twenty times the median, usually caused by one very cloudy tile with far more valid pixels to interpolate. Serialisation overhead appears as high CPU with low throughput when large objects are passed between tasks instead of paths. Non-deterministic reduction order appears as two runs producing totals that differ in the last few digits. A panel notes that only the first changes the answer visibly and the fourth changes it invisibly.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Four failures, one of which is silent</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Each shows a characteristic symptom before it shows a wrong number.</text>
+    <rect x="12" y="52" width="212" height="128" rx="9" fill="none" stroke="#f3a712" stroke-width="1.9" stroke-dasharray="6,3"/>
+    <text x="28" y="76" fill="currentColor" font-size="10.5" font-weight="700">Worker eviction</text>
+    <text x="28" y="100" fill="currentColor" font-size="9.5" opacity="0.85">tasks restart repeatedly</text>
+    <text x="28" y="120" fill="#f3a712" font-size="9.5" font-weight="700">run “succeeds” short</text>
+    <text x="28" y="146" fill="currentColor" font-size="9" opacity="0.78">caught by the partition-set</text>
+    <text x="28" y="162" fill="currentColor" font-size="9" opacity="0.78">completeness assertion</text>
+    <rect x="236" y="52" width="212" height="128" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="236" y="52" width="212" height="128" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="252" y="76" fill="currentColor" font-size="10.5" font-weight="700">Straggler tiles</text>
+    <text x="252" y="100" fill="currentColor" font-size="9.5" opacity="0.85">p99 task time 20× median</text>
+    <text x="252" y="120" fill="currentColor" font-size="9.5" opacity="0.85">one very cloudy tile</text>
+    <text x="252" y="146" fill="currentColor" font-size="9" opacity="0.78">split by valid-pixel count,</text>
+    <text x="252" y="162" fill="currentColor" font-size="9" opacity="0.78">not by tile area</text>
+    <rect x="460" y="52" width="212" height="128" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="460" y="52" width="212" height="128" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="476" y="76" fill="currentColor" font-size="10.5" font-weight="700">Serialisation cost</text>
+    <text x="476" y="100" fill="currentColor" font-size="9.5" opacity="0.85">high CPU, low throughput</text>
+    <text x="476" y="120" fill="currentColor" font-size="9.5" opacity="0.85">arrays passed, not paths</text>
+    <text x="476" y="146" fill="currentColor" font-size="9" opacity="0.78">pass references; let workers</text>
+    <text x="476" y="162" fill="currentColor" font-size="9" opacity="0.78">read from the store</text>
+    <rect x="684" y="52" width="184" height="128" rx="9" fill="none" stroke="#f3a712" stroke-width="1.9" stroke-dasharray="6,3"/>
+    <text x="700" y="76" fill="currentColor" font-size="10.5" font-weight="700">Reduction order</text>
+    <text x="700" y="100" fill="currentColor" font-size="9.5" opacity="0.85">totals differ in last digits</text>
+    <text x="700" y="120" fill="#f3a712" font-size="9.5" font-weight="700">no symptom at all</text>
+    <text x="700" y="146" fill="currentColor" font-size="9" opacity="0.78">fix the order or compare</text>
+    <text x="700" y="162" fill="currentColor" font-size="9" opacity="0.78">to a stated tolerance</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### How do I pick a chunk size for satellite rasters?
+
+Start from the file's internal block size and take a multiple of it, then tune within the window where wall-clock is near its minimum. Chunks smaller than a block force partial reads that fetch and discard data; chunks much larger than a worker's memory budget force spilling. For typical cloud-optimised imagery this lands somewhere between 512 and 1024 pixels square, but measure rather than assume — it depends on band count, dtype, and how many arrays are alive at once.
+
+### Why is one tile taking twenty times longer than the rest?
+
+Almost always because it has far more work, not because it is unlucky. A very cloudy tile has more gaps to interpolate, more scenes to composite, and more masked pixels to process; a tile spanning a coastline may have a large nodata region that some operations still traverse. Partition by expected work — valid observation count — rather than by tile area, and the distribution flattens considerably.
+
+### Should tasks pass arrays between each other?
+
+No. Pass paths or references and let each worker read from the object store. Serialising large arrays between tasks moves data over the network twice, inflates memory on both sides, and turns a compute-bound job into a serialisation-bound one. The pattern that scales is: each task reads what it needs, computes, writes its output, and returns a path.
+
+### How do I make a distributed reduction reproducible?
+
+Either fix the reduction order — sort partitions by their deterministic key before combining — or accept a stated tolerance and compare against it rather than against exact equality. Floating-point addition is not associative, so a sum over a variable number of workers genuinely differs in the last few digits between runs. Both approaches are defensible; what is not defensible is a determinism claim that has never been tested.
+
+### What should be checkpointed in a long tile run?
+
+Completed partitions, and nothing else. Because each partition is independently recomputable from its inputs, the completed set is a sufficient checkpoint and it is trivially correct on resume. Checkpointing intermediate in-memory state is where partial-state bugs come from: a resume that restores a half-built accumulator produces a result that is neither the old one nor a fresh one, and nothing about it looks wrong.
+
+### Should the cluster be sized for the peak or the median run?
+
+For the median, with elastic headroom for the peak. Tile counts vary by a factor of two or more across a year, and a cluster sized for the dry-season peak idles for most of it. Autoscaling on queue depth handles the variation well because the workload is embarrassingly parallel and each task is independently recoverable, so a scale-down that loses a worker costs one task rather than a run.
+
+### What belongs in a worker image versus installed at run time?
+
+Everything the computation depends on belongs in the image, including the PROJ grid package and any model weights. Installing dependencies at run time makes the environment a function of when the run happened, which breaks reproducibility in exactly the way a pinned container is meant to prevent — and it introduces a failure mode where a run works today and cannot be replayed next year because a package version disappeared.
+
+### How should the tile grid relate to the reporting boundary?
+
+Keep them independent and intersect at aggregation. A tile grid aligned to the imagery is stable, reusable across projects, and lets a tile-month be cached and reused; a grid cut to project boundaries has to be rebuilt whenever a boundary changes and prevents any sharing between overlapping projects. Compute on the imagery grid, then intersect with boundaries at the aggregation step, where the geometry work is small and the equal-area projection is already in force.
 
 ## Conclusion
 

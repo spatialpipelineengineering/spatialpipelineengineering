@@ -14,7 +14,7 @@ An additionality baseline is the counterfactual a REDD+ project is credited agai
 
 The engineering problem is not curve-fitting a historical deforestation rate. It is building a spatially explicit, reproducible counterfactual: select a reference region whose covariate distribution genuinely matches the project, model where deforestation risk is concentrated, allocate an expected quantity of forest loss to the highest-risk pixels, convert that loss to emissions with per-stratum carbon densities, and net it against observed loss with a conservative uncertainty deduction. Each of those steps is a place where an unexamined assumption inflates the credit, so each one carries an explicit gate that refuses to proceed on data it cannot defend.
 
-<svg viewBox="0 0 1000 300" role="img" aria-labelledby="redd-add-t redd-add-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+<svg viewBox="-4 80 1008 216" role="img" aria-labelledby="redd-add-t redd-add-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
   <title id="redd-add-t">REDD+ additionality baseline modelling flow with comparability gate</title>
   <desc id="redd-add-d">A reference region and its covariate stack pass through a comparability gate that checks whether the project and reference covariate distributions are balanced. If balanced, a deforestation-risk model is fitted and used to allocate expected baseline loss to the highest-risk pixels, which is converted to baseline emissions with per-stratum carbon densities. Baseline emissions are compared to observed loss, and an uncertainty deduction is applied to produce the credited, audited additionality in the amber output box. If the comparability gate fails, the flow routes to reference-region reselection rather than modelling.</desc>
   <defs>
@@ -72,7 +72,7 @@ The engineering problem is not curve-fitting a historical deforestation rate. It
   </g>
   <!-- branch labels -->
   <g font-family="system-ui, sans-serif" text-anchor="middle" font-size="9.5" font-weight="600">
-    <text x="368" y="145" fill="#f3a712">balanced</text>
+    <text x="352" y="145" fill="#f3a712">balanced</text>
     <text x="238" y="235" fill="currentColor" opacity="0.8">imbalanced</text>
   </g>
 </svg>
@@ -176,6 +176,34 @@ def comparability_preflight(
 ```
 
 A report with `comparable=False` does not get patched by tightening the model. It routes back to reference-region reselection — dropping the imbalanced covariates' worst matches, or resampling the reference pool — until the balance gate passes, so the counterfactual rests on a defensible analogue rather than a convenient one.
+
+<svg viewBox="0 -4 880 214" role="img" aria-labelledby="ref-t ref-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="ref-t">Reference-region comparability, tested rather than asserted</title>
+  <desc id="ref-d">Four comparability criteria with a pass or fail verdict for a candidate reference region. Deforestation rate over the pre-project decade matches within 12 percent and passes. Distance-to-road distribution differs by a standardised mean difference of 0.07 and passes. Slope distribution differs by 0.31, exceeding the 0.25 threshold, and fails — the candidate region is systematically flatter and therefore more accessible than the project. Tenure composition differs materially and fails. A verdict panel states that two failures make the region unusable as it stands, and that the fix is to restrict the candidate area to comparable terrain and tenure rather than to relax the thresholds.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Test the reference region; do not assert it</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">One candidate region, four criteria.</text>
+    <rect x="12" y="52" width="612" height="34" rx="6" fill="currentColor" opacity="0.07"/>
+    <text x="28" y="74" fill="currentColor" font-size="10">Pre-project deforestation rate — within 12%</text>
+    <text x="608" y="74" text-anchor="end" fill="currentColor" font-size="10" font-weight="700">pass</text>
+    <rect x="12" y="92" width="612" height="34" rx="6" fill="currentColor" opacity="0.07"/>
+    <text x="28" y="114" fill="currentColor" font-size="10">Distance to road — SMD 0.07</text>
+    <text x="608" y="114" text-anchor="end" fill="currentColor" font-size="10" font-weight="700">pass</text>
+    <rect x="12" y="132" width="612" height="34" rx="6" fill="#f3a712" opacity="0.2"/>
+    <text x="28" y="154" fill="currentColor" font-size="10">Slope — SMD 0.31, above the 0.25 limit</text>
+    <text x="608" y="154" text-anchor="end" fill="#f3a712" font-size="10" font-weight="700">fail — flatter, more accessible</text>
+    <rect x="12" y="172" width="612" height="34" rx="6" fill="#f3a712" opacity="0.2"/>
+    <text x="28" y="194" fill="currentColor" font-size="10">Tenure composition — materially different</text>
+    <text x="608" y="194" text-anchor="end" fill="#f3a712" font-size="10" font-weight="700">fail</text>
+    <rect x="648" y="66" width="220" height="126" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="648" y="66" width="220" height="126" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="664" y="90" fill="currentColor" font-size="10" font-weight="700">Verdict: unusable as it stands</text>
+    <text x="664" y="116" fill="currentColor" font-size="9.5" opacity="0.85">Restrict the candidate area to</text>
+    <text x="664" y="132" fill="currentColor" font-size="9.5" opacity="0.85">comparable terrain and tenure.</text>
+    <text x="664" y="158" fill="#f3a712" font-size="9.5" font-weight="700">Do not relax the thresholds</text>
+    <text x="664" y="174" fill="#f3a712" font-size="9.5" font-weight="700">to make it pass.</text>
+  </g>
+</svg>
 
 ## Deterministic Transformation Logic
 
@@ -292,6 +320,65 @@ Deploy the routine within an orchestrated MRV pipeline, following a fixed ingest
 6. **Submit.** Forward the credited additionality and its lineage to registry submission, aligning outputs to the requirements in [Verra VM0047 vs Gold Standard GIS requirements](https://www.spatialpipelineengineering.org/pipeline-orchestration-compliance-reference/carbon-registry-standards-and-methodologies/verra-vm0047-vs-gold-standard-gis-requirements/).
 
 By gating comparability before the model, allocating loss spatially rather than uniformly, and discounting the credit by its own uncertainty, the baseline stops being an optimistic projection and becomes a reproducible counterfactual an auditor can rebuild from raw inputs. That is the difference between a REDD+ claim that survives verification and one that unwinds the first time a reviewer resamples the reference region.
+
+<svg viewBox="0 -4 740 212" role="img" aria-labelledby="dyn-t dyn-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="dyn-t">A static baseline against a dynamic benchmark when regional pressure falls</title>
+  <desc id="dyn-d">A chart over ten years. Regional deforestation pressure falls markedly from year four onward, for reasons unconnected with the project — a commodity price fall and an enforcement campaign. A static baseline fixed at validation stays flat at the historical rate throughout, so the gap between it and the observed project trajectory widens and the project appears to perform better every year. A dynamic benchmark tracks the falling regional rate, so the credited difference shrinks in line with the reduced pressure. A panel notes that the static baseline credits the project for a regional trend it did not cause, and that this is the specific failure dynamic benchmarks were introduced to close.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">A static baseline credits you for other people's trends</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Regional pressure falls from year four for reasons unrelated to the project.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1" opacity="0.22">
+    <line x1="80" y1="60" x2="560" y2="60"/><line x1="80" y1="104" x2="560" y2="104"/><line x1="80" y1="148" x2="560" y2="148"/>
+  </g>
+  <g stroke="currentColor" stroke-width="1.3">
+    <line x1="80" y1="50" x2="80" y2="176"/>
+    <line x1="80" y1="176" x2="560" y2="176"/>
+  </g>
+  <g font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.72">
+    <text x="80" y="192" text-anchor="middle">yr 0</text>
+    <text x="272" y="192" text-anchor="middle">yr 4</text>
+    <text x="560" y="192" text-anchor="middle">yr 10</text>
+    <text x="34" y="118" transform="rotate(-90 34 118)" text-anchor="middle" font-weight="600">deforestation rate</text>
+  </g>
+  <line x1="272" y1="46" x2="272" y2="180" stroke="currentColor" stroke-width="1.4" stroke-dasharray="4,3" opacity="0.6"/>
+  <text x="278" y="46" font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.75">price fall + enforcement</text>
+  <polyline points="80,80 176,80 272,80 368,80 464,80 560,80" fill="none" stroke="#f3a712" stroke-width="2.8"/>
+  <polyline points="80,80 176,82 272,84 368,120 464,142 560,150" fill="none" stroke="currentColor" stroke-width="2.8"/>
+  <polyline points="80,164 176,166 272,166 368,168 464,169 560,170" fill="none" stroke="currentColor" stroke-width="2.4" stroke-dasharray="6,3"/>
+  <g font-family="system-ui, sans-serif" font-size="9.5" font-weight="600">
+    <text x="576" y="84" fill="#f3a712">static baseline</text>
+    <text x="576" y="154" fill="currentColor">dynamic benchmark</text>
+    <text x="576" y="174" fill="currentColor" opacity="0.85">observed project</text>
+    <text x="12" y="206" font-weight="400" fill="currentColor" opacity="0.82">The widening amber gap is not performance. It is a regional trend the project did not cause, credited as if it had.</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### Why did methodologies move to dynamic benchmarks?
+
+Because a static baseline credits a project for regional trends it did not cause. When commodity prices fall or enforcement improves, deforestation drops everywhere, and a baseline frozen at the historical rate widens against the observed trajectory year after year — producing a rising credit stream from an external event. A dynamic benchmark tracks the regional rate, so the credited difference reflects the project's own effect. It also means the credit can fall for reasons outside the project's control, which is the symmetric and correct consequence.
+
+### How large should the reference region be?
+
+Large enough that its rate is statistically stable at the reporting interval, small enough that it remains comparable to the project on the drivers of change. Those pull in opposite directions, and the resolution is stratification: define a large candidate region, then restrict to strata matching the project's terrain, accessibility, and tenure. Report the region's area, its stratification, and the resulting sample size, since a benchmark computed from a handful of pixels is noise wearing a counterfactual's clothes.
+
+### What if the project outperforms every comparable area by a wide margin?
+
+Investigate before celebrating. A very large positive difference is more often a comparability problem than an exceptional intervention — an unmatched covariate, a boundary drawn around land that was never under pressure, or a difference in how change is measured inside and outside the project. Run the pre-project trend test, re-check the balance statistics, and confirm both areas were processed through an identical pipeline before attributing the gap to the project.
+
+### How do I keep the baseline analysis reproducible across a decade?
+
+Freeze the reference region and its stratification at validation with a content hash, pin the change-detection code and its parameters, and store the per-period inputs rather than only the computed rates. A baseline that cannot be recomputed from stored evidence is a baseline that will be re-estimated with whatever tools exist at the next revision, which makes the series discontinuous in a way nobody planned.
+
+### Should the baseline be spatially explicit or a single rate?
+
+Spatially explicit where the methodology allows it, because deforestation risk varies enormously within a project — roadsides and edges face pressure that interiors do not. A single rate applied uniformly over-credits protected interiors and under-credits genuinely threatened margins. A risk-stratified baseline is more work and more defensible, and it makes the leakage analysis easier because the belt's expected pressure is already modelled.
+
+### How should the risk model's own uncertainty enter the baseline?
+
+Through the allocation rather than as an afterthought. The risk model predicts where loss would occur, and its error means the allocated pattern is uncertain even when the total is not; propagating that through to the baseline emissions gives an interval that reflects both the quantity and its placement. Where the carbon density varies strongly across the project, placement uncertainty can dominate — the same hectares of loss allocated to high-density or low-density pixels produce materially different baseline emissions.
 
 ## Related guides
 

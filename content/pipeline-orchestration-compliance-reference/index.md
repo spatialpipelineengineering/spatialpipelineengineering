@@ -295,6 +295,35 @@ The compliance layer also reconciles project-level land-sector removals against 
 | Lineage / content hash | CSRD assurance, ISO 14064-3 | Submission refused unless a sealed audit record exists |
 
 
+<svg viewBox="207 -30 697 262" role="img" aria-labelledby="orch2-t orch2-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="orch2-t">The three contracts that hold an MRV platform together</title>
+  <desc id="orch2-d">Three interlocking contracts drawn as overlapping responsibilities. The schema contract fixes columns, units, and coordinate reference systems, and is consumed by every stage. The orchestration contract fixes partition keys, idempotency, and replay semantics, and is what makes a historical window recomputable. The evidence contract fixes lineage, versions, and signatures, and is what makes a figure defensible. A central overlap is labelled reproducible reported figure, and a panel notes that a platform satisfying only two of the three fails in a characteristic way: without schema it cannot be validated, without orchestration it cannot be replayed, and without evidence it cannot be defended.</desc>
+  <g font-family="system-ui, sans-serif" text-anchor="middle">
+    <text x="450" y="16" fill="currentColor" font-size="11.5" font-weight="700">Three contracts, and the failure mode of dropping each</text>
+    <circle cx="330" cy="128" r="86" fill="currentColor" opacity="0.08"/>
+    <circle cx="330" cy="128" r="86" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <circle cx="450" cy="128" r="86" fill="currentColor" opacity="0.08"/>
+    <circle cx="450" cy="128" r="86" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <circle cx="390" cy="72" r="86" fill="currentColor" opacity="0.08"/>
+    <circle cx="390" cy="72" r="86" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <text x="390" y="34" fill="currentColor" font-size="10" font-weight="700">Schema</text>
+    <text x="390" y="48" fill="currentColor" font-size="8.5" opacity="0.8">columns · units · CRS</text>
+    <text x="272" y="188" fill="currentColor" font-size="10" font-weight="700">Orchestration</text>
+    <text x="272" y="202" fill="currentColor" font-size="8.5" opacity="0.8">partitions · idempotency</text>
+    <text x="516" y="188" fill="currentColor" font-size="10" font-weight="700">Evidence</text>
+    <text x="516" y="202" fill="currentColor" font-size="8.5" opacity="0.8">lineage · versions · signature</text>
+    <text x="390" y="112" fill="currentColor" font-size="9.5" font-weight="700">reproducible</text>
+    <text x="390" y="126" fill="currentColor" font-size="9.5" font-weight="700">reported figure</text>
+    <rect x="622" y="52" width="266" height="128" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="622" y="52" width="266" height="128" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="755" y="76" fill="currentColor" font-size="10" font-weight="700">Drop one and it fails predictably</text>
+    <text x="755" y="102" fill="currentColor" font-size="9.5" opacity="0.85">no schema → cannot be validated</text>
+    <text x="755" y="124" fill="currentColor" font-size="9.5" opacity="0.85">no orchestration → cannot be replayed</text>
+    <text x="755" y="146" fill="currentColor" font-size="9.5" opacity="0.85">no evidence → cannot be defended</text>
+    <text x="755" y="168" fill="#f3a712" font-size="9.5" font-weight="700">all three are load-bearing</text>
+  </g>
+</svg>
+
 ## Audit Trails, Lineage & Provenance
 
 Verification is a question about *evidence*, and the orchestration layer is where that evidence is generated as a by-product of running the pipeline rather than assembled by hand afterward. Every task in the flow emits structured telemetry, and the verify stage seals a tamper-evident certificate whose content hash chains over the reporting total, the schema-contract version, the emission-factor database version, the CRS, and the timestamp. Any later mutation of those inputs changes the digest, so a certificate is a cryptographic assertion that a specific number was produced from a specific configuration. This inherits directly from the provenance discipline established in [MRV data lineage and provenance tracking](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/mrv-data-lineage-provenance-tracking/), which this section operationalizes at the orchestration level.
@@ -319,6 +348,73 @@ Running this control plane in production is an infrastructure discipline in its 
 - **Observability and cost control.** Instrument the orchestrator with metrics — task latency, retry rates, validation-failure rates, and cloud egress — and route the structured logs to a queryable store. Use spot capacity for stateless raster algebra and reserved capacity for the persistent reference and topology databases, and alert on drift in the median uncertainty and gate-failure rates even on runs that pass.
 
 For teams standardizing on open specifications, the [OpenLineage](https://openlineage.io/) standard provides a portable lineage model that plugs directly into these orchestrators, while the [STAC Specification](https://stacspec.org/) keeps input identity machine-readable across the ingest boundary. Both decouple the governance plane from any single engine, which is what lets a platform migrate orchestrators without losing its audit history.
+
+<svg viewBox="0 -4 880 224" role="img" aria-labelledby="cad-t cad-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="cad-t">Four clocks an MRV platform runs on, and why they must be separated</title>
+  <desc id="cad-d">Four timelines at different cadences. Acquisition cadence runs every few days as satellite scenes land. Processing cadence runs nightly, transforming whatever has arrived. Reporting cadence runs quarterly or annually, freezing a period for disclosure. Audit cadence runs at unpredictable intervals over decades, replaying arbitrary historical windows. A panel explains that coupling any two of these produces a characteristic failure: coupling processing to reporting means a late scene cannot be incorporated, and coupling audit to processing means a replay must use today's code rather than the code that produced the figure.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Four clocks, deliberately unsynchronised</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Coupling any two of them is a design error with a predictable symptom.</text>
+    <text x="12" y="66" fill="currentColor" font-size="10" font-weight="700">Acquisition</text>
+    <text x="12" y="106" fill="currentColor" font-size="10" font-weight="700">Processing</text>
+    <text x="12" y="146" fill="currentColor" font-size="10" font-weight="700">Reporting</text>
+    <text x="12" y="186" fill="currentColor" font-size="10" font-weight="700">Audit</text>
+  </g>
+  <g>
+    <line x1="130" y1="62" x2="600" y2="62" stroke="currentColor" stroke-width="1.2" opacity="0.4"/>
+    <circle cx="146" cy="62" r="4" fill="currentColor"/><circle cx="186" cy="62" r="4" fill="currentColor"/><circle cx="226" cy="62" r="4" fill="currentColor"/>
+    <circle cx="266" cy="62" r="4" fill="currentColor"/><circle cx="306" cy="62" r="4" fill="currentColor"/><circle cx="346" cy="62" r="4" fill="currentColor"/>
+    <circle cx="386" cy="62" r="4" fill="currentColor"/><circle cx="426" cy="62" r="4" fill="currentColor"/><circle cx="466" cy="62" r="4" fill="currentColor"/>
+    <circle cx="506" cy="62" r="4" fill="currentColor"/><circle cx="546" cy="62" r="4" fill="currentColor"/><circle cx="586" cy="62" r="4" fill="currentColor"/>
+    <text x="616" y="66" font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.75">every few days</text>
+    <line x1="130" y1="102" x2="600" y2="102" stroke="currentColor" stroke-width="1.2" opacity="0.4"/>
+    <rect x="140" y="96" width="8" height="12" fill="currentColor" opacity="0.7"/><rect x="200" y="96" width="8" height="12" fill="currentColor" opacity="0.7"/>
+    <rect x="260" y="96" width="8" height="12" fill="currentColor" opacity="0.7"/><rect x="320" y="96" width="8" height="12" fill="currentColor" opacity="0.7"/>
+    <rect x="380" y="96" width="8" height="12" fill="currentColor" opacity="0.7"/><rect x="440" y="96" width="8" height="12" fill="currentColor" opacity="0.7"/>
+    <rect x="500" y="96" width="8" height="12" fill="currentColor" opacity="0.7"/><rect x="560" y="96" width="8" height="12" fill="currentColor" opacity="0.7"/>
+    <text x="616" y="106" font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.75">nightly</text>
+    <line x1="130" y1="142" x2="600" y2="142" stroke="currentColor" stroke-width="1.2" opacity="0.4"/>
+    <rect x="180" y="132" width="14" height="20" rx="3" fill="currentColor" opacity="0.8"/>
+    <rect x="380" y="132" width="14" height="20" rx="3" fill="currentColor" opacity="0.8"/>
+    <rect x="580" y="132" width="14" height="20" rx="3" fill="currentColor" opacity="0.8"/>
+    <text x="616" y="146" font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.75">quarterly freeze</text>
+    <line x1="130" y1="182" x2="600" y2="182" stroke="currentColor" stroke-width="1.2" opacity="0.4"/>
+    <polygon points="266,174 274,190 258,190" fill="#f3a712"/>
+    <polygon points="486,174 494,190 478,190" fill="#f3a712"/>
+    <text x="616" y="186" font-family="system-ui, sans-serif" font-size="9" fill="#f3a712" font-weight="700">for decades</text>
+  </g>
+  <g font-family="system-ui, sans-serif">
+    <rect x="700" y="96" width="168" height="88" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="700" y="96" width="168" height="88" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="714" y="118" fill="currentColor" font-size="9.5" font-weight="700">Coupling symptoms</text>
+    <text x="714" y="138" fill="currentColor" font-size="9" opacity="0.85">processing≡reporting →</text>
+    <text x="714" y="152" fill="currentColor" font-size="9" opacity="0.85">a late scene is lost</text>
+    <text x="714" y="170" fill="currentColor" font-size="9" opacity="0.85">audit≡processing → replay</text>
+    <text x="714" y="184" fill="currentColor" font-size="9" opacity="0.85">uses today's code</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### What distinguishes an MRV platform from a general data platform?
+
+Three requirements that a general platform treats as optional. Every figure must be replayable years later from pinned inputs and a pinned environment. Every transformation must be traceable to a named methodology requirement. And every stage must assert spatial invariants that ordinary data engineering has no concept of — coordinate systems, geometry validity, area conservation. A general platform can be excellent and still fail all three, which is why retrofitting MRV requirements onto one is usually more work than it looks.
+
+### Should the reporting freeze be a copy or a pointer?
+
+A pointer to immutable artefacts, with the manifest signed. Copying at freeze time creates a second version of the truth that will eventually diverge from the first; pointing at content-addressed artefacts means the freeze is a statement about which artefacts constituted the report, not a duplicate of them. The signature over the manifest is what makes the statement tamper-evident, and it is what a verifier checks first.
+
+### How should late-arriving data be handled after a period is frozen?
+
+By restatement, not by silent inclusion. A scene that lands after the freeze belongs to the period it observes, so incorporating it changes a published figure — which is a restatement with its own disclosure obligations, however small the change. Systems that quietly absorb late data produce figures that differ from what was published without anyone noticing, and the discrepancy surfaces during verification rather than during reporting.
+
+### What is the right granularity for a partition key?
+
+The smallest unit that is independently recomputable, which for satellite-driven MRV is almost always the tile-month. Smaller partitions make backfills precise and retries cheap; larger ones make a single failure expensive to recover from. The key must be deterministic from the inputs — derived from tile and period, not from a run identifier or a timestamp — or replay cannot reproduce the same paths.
+
+### How much of this should be built versus bought?
+
+Buy the orchestrator, the object store, and the observability transport; build the schema contract, the invariants, and the evidence record. The bought components are commodity and replaceable, and treating them as such keeps the platform portable across the decades a crediting period spans. The built components encode your methodology and your failure history, and they are what a verifier is actually assessing.
 
 ## Conclusion
 

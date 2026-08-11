@@ -4,7 +4,7 @@ Threshold tuning is the calibration stage that decides which pixel-level carbon 
 
 Engineered correctly, threshold tuning treats the cutoff as a versioned, reproducible parameter derived from drift-corrected distributions rather than a hand-tuned constant. It depends on deterministic [CRS alignment](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/geospatial-coordinate-reference-systems-crs-alignment/) from the foundational [MRV Architecture & Carbon Accounting Fundamentals](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/) stack to keep every area-weighted statistic honest, and on cloud-masked, temporally aligned reflectance from the [satellite imagery processing](https://www.spatialpipelineengineering.org/satellite-imagery-processing-for-emissions-tracking/) layer to keep the input distribution stable across reference periods. This article details where the stage sits, how it fails, and how to implement it as a defensible, auditable component.
 
-<svg viewBox="0 0 920 184" role="img" aria-label="Threshold tuning pipeline in five stages. A CRS-validated carbon proxy stack is split into per-ecoregion strata, each stratum gets a 95th-percentile threshold from quantile regression, the thresholds are applied to build a stable-versus-degraded mask, and the mask is exported as a compliance-ready raster carrying Verra VM0042 metadata." xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:920px;display:block;margin:1.5rem auto;">
+<svg viewBox="-4 41 930 102" role="img" aria-label="Threshold tuning pipeline in five stages. A CRS-validated carbon proxy stack is split into per-ecoregion strata, each stratum gets a 95th-percentile threshold from quantile regression, the thresholds are applied to build a stable-versus-degraded mask, and the mask is exported as a compliance-ready raster carrying Verra VM0042 metadata." xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:920px;display:block;margin:1.5rem auto;">
   <title>Five-stage threshold tuning pipeline from carbon proxy stack to compliance-ready raster</title>
   <desc>A CRS-validated carbon proxy stack feeds per-ecoregion stratification. Each stratum passes to quantile regression that derives a 95th-percentile threshold. The thresholds are then applied to classify pixels into a stable-versus-degraded mask, which is exported as a compliance-ready raster tagged with Verra VM0042 metadata.</desc>
   <defs>
@@ -254,6 +254,73 @@ Each code output maps to a specific regulatory requirement:
 </div>
 
 Production pipelines should route every threshold artefact to a version-controlled compliance ledger so that an audit request can reconstruct the exact statistical parameters, CRS, and temporal windows used during baseline generation. The `metadata` block written in `apply_and_export` is the minimum payload; in practice it is supplemented by the structured `threshold_computed` log lines, which give a per-region trail of value and quantile.
+
+<svg viewBox="0 -4 880 216" role="img" aria-labelledby="thr2-t thr2-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="thr2-t">Why a threshold must be frozen once a baseline is set</title>
+  <desc id="thr2-d">A timeline over three monitoring periods with two scenarios. In the frozen-threshold scenario, the canopy-cover cut-off stays at 30 percent throughout, so the measured forest area falls only when forest is actually lost, and the three periods are comparable. In the drifting-threshold scenario, the cut-off is re-tuned each period to 30, then 25, then 35 percent, so the measured area rises in period two and falls sharply in period three purely from the definition changing. A panel notes that the drifting series is indistinguishable from real change in the output, that the effect is comparable in size to a year of genuine deforestation, and that the threshold therefore belongs in version control with the emission factors.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">A re-tuned threshold is indistinguishable from real change</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Measured forest area across three monitoring periods.</text>
+    <text x="12" y="76" fill="currentColor" font-size="10" font-weight="700">Frozen at 30%</text>
+    <text x="12" y="146" fill="#f3a712" font-size="10" font-weight="700">Re-tuned each period</text>
+  </g>
+  <g>
+    <rect x="200" y="56" width="180" height="34" rx="5" fill="currentColor" opacity="0.26"/>
+    <text x="290" y="78" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">48 200 ha · 30%</text>
+    <rect x="392" y="56" width="176" height="34" rx="5" fill="currentColor" opacity="0.26"/>
+    <text x="480" y="78" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">47 600 ha · 30%</text>
+    <rect x="580" y="56" width="172" height="34" rx="5" fill="currentColor" opacity="0.26"/>
+    <text x="666" y="78" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">46 900 ha · 30%</text>
+    <text x="768" y="78" font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.8">real loss only</text>
+    <rect x="200" y="126" width="180" height="34" rx="5" fill="#f3a712" opacity="0.28"/>
+    <text x="290" y="148" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">48 200 ha · 30%</text>
+    <rect x="392" y="126" width="176" height="34" rx="5" fill="#f3a712" opacity="0.28"/>
+    <text x="480" y="148" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">51 400 ha · 25%</text>
+    <rect x="580" y="126" width="172" height="34" rx="5" fill="#f3a712" opacity="0.28"/>
+    <text x="666" y="148" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">43 100 ha · 35%</text>
+    <text x="768" y="148" font-family="system-ui, sans-serif" font-size="9" fill="#f3a712" font-weight="700">definition, not forest</text>
+  </g>
+  <g font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.72" text-anchor="middle">
+    <text x="290" y="182">period 1</text>
+    <text x="480" y="182">period 2</text>
+    <text x="666" y="182">period 3</text>
+  </g>
+  <text x="12" y="208" font-family="system-ui, sans-serif" font-size="9.5" fill="currentColor" opacity="0.85">The 8 300 ha swing is comparable to a year of genuine deforestation. Version the threshold alongside the emission factors.</text>
+</svg>
+
+## Frequently Asked Questions
+
+### How should a canopy-cover threshold be chosen?
+
+By calibration against field plots under the applicable forest definition, not by adopting a common value. The national or methodological forest definition fixes the crown-cover, height, and area criteria; the threshold is then whatever cut-off on your imagery-derived cover product best reproduces that definition on plots you have measured. Record the calibration sample, the resulting cut-off, and its sensitivity, because a reviewer will ask why this number and not the neighbouring one.
+
+### Can the threshold be re-tuned between monitoring periods?
+
+Only as a disclosed restatement. Changing the cut-off changes measured area by an amount comparable to a year of real deforestation, and the resulting series looks exactly like change with no physical cause. Freeze the threshold with the baseline, version it alongside the emission factors, and if a revision is genuinely warranted, recompute the whole history under both values and publish the difference.
+
+### What if the project spans two forest definitions?
+
+Compute both, report against the one that applies to each jurisdiction, and never blend them into a single number. Cross-border projects routinely face this, and the temptation to pick one definition for tidiness produces a figure that is wrong on one side of the boundary. Carrying the definition as an attribute on each parcel makes the dual reporting mechanical rather than manual.
+
+### How sensitive should a baseline be to the threshold?
+
+Less sensitive than the effect you are claiming, and you should demonstrate it. Sweep the threshold across a plausible band and plot the resulting baseline; if a five-point change in cut-off moves the baseline by more than the credited reduction, the claim rests on the threshold rather than on the forest. That sweep is cheap, is exactly what a reviewer would run, and is far better presented by you than discovered by them.
+
+### Does the threshold interact with spatial resolution?
+
+Substantially. Cover measured at 10 metres and at 30 metres produce different distributions over the same landscape, because coarser pixels average partial cover, so a threshold calibrated at one resolution is wrong at another. Fix the resolution together with the threshold, record both, and re-calibrate if the imagery source changes — a sensor upgrade is a threshold event even though nothing about the forest definition moved.
+
+### How does the threshold interact with change detection?
+
+Directly, and in a way that surprises people: a pixel oscillating around the cut-off flips class between periods without any real change, generating spurious loss and gain that partially cancel in the total but not in the map. Applying hysteresis — requiring a larger move to leave the forest class than to enter it — suppresses most of this, at the cost of a small lag in detecting genuine change. Whichever you choose, apply it symmetrically across periods and record it, because it is as consequential as the threshold itself.
+
+### Can the threshold be validated without field plots?
+
+Only weakly. High-resolution imagery interpreted by a trained analyst is a workable substitute for calibrating crown cover, and it is far cheaper than fieldwork over large areas. What it cannot establish is the height criterion, which is where photo-interpretation is least reliable and where the definition most often bites. A hybrid — photo-interpretation for cover at scale, a smaller field sample for height — is the usual compromise, with the sample sizes recorded separately.
+
+### What belongs in the threshold's audit record?
+
+The calibration sample with its interpretation protocol, the sweep results across the candidate range, the selected value with the criterion that selected it, the resulting area at that value and at its neighbours, and the version and effective date. Five items, all produced during the tuning work anyway, and together they answer the only question a verifier has about a threshold: why this number, and what would have happened at a different one.
 
 ## Conclusion
 

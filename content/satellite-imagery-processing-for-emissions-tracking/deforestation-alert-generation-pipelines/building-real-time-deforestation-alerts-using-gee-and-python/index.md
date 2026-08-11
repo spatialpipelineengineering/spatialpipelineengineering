@@ -255,6 +255,50 @@ def build_deforestation_alert(tile_bounds: ee.Geometry, target_epsg: str,
 
 Pinning `filterDate()`, disabling randomized reducers, and caching intermediate composites as Earth Engine assets guarantees that a re-run on the same inputs reproduces byte-identical geometry — the reproducibility contract that auditors replay during verification.
 
+<svg viewBox="0 -4 880 228" role="img" aria-labelledby="base-t base-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="base-t">Rolling baseline window length and its two competing errors</title>
+  <desc id="base-d">A chart with baseline window length from 3 to 36 months on the horizontal axis. The false-alert rate falls steeply from 46 per week at a 3-month window to 8 per week at 24 months, because a longer window better characterises normal seasonal variation. The staleness error, meaning disturbance that the baseline has already absorbed and can no longer detect, rises from near zero at 3 months to 19 per week at 36 months. A combined error curve has a minimum around 18 months. A panel notes that the optimum moves with the local disturbance rate: fast-changing landscapes need shorter windows and accept more false alerts.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">The baseline window trades two errors against each other</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Errors per week against rolling-baseline length.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1" opacity="0.22">
+    <line x1="80" y1="66" x2="600" y2="66"/><line x1="80" y1="110" x2="600" y2="110"/><line x1="80" y1="154" x2="600" y2="154"/>
+  </g>
+  <g stroke="currentColor" stroke-width="1.3">
+    <line x1="80" y1="56" x2="80" y2="186"/>
+    <line x1="80" y1="186" x2="600" y2="186"/>
+  </g>
+  <g font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.72">
+    <text x="72" y="70" text-anchor="end">48</text>
+    <text x="72" y="114" text-anchor="end">32</text>
+    <text x="72" y="158" text-anchor="end">16</text>
+    <text x="72" y="190" text-anchor="end">0</text>
+    <text x="80" y="206" text-anchor="middle">3 mo</text>
+    <text x="253" y="206" text-anchor="middle">12 mo</text>
+    <text x="426" y="206" text-anchor="middle">24 mo</text>
+    <text x="600" y="206" text-anchor="middle">36 mo</text>
+  </g>
+  <polyline points="80,60 166,110 253,142 340,158 426,164 513,168 600,170" fill="none" stroke="#f3a712" stroke-width="2.6"/>
+  <polyline points="80,185 166,182 253,174 340,160 426,140 513,116 600,94" fill="none" stroke="currentColor" stroke-width="2.4" stroke-dasharray="7,4"/>
+  <polyline points="80,58 166,104 253,132 340,140 366,138 426,128 513,110 600,88" fill="none" stroke="currentColor" stroke-width="2.8"/>
+  <circle cx="348" cy="140" r="6" fill="none" stroke="currentColor" stroke-width="2.4"/>
+  <g font-family="system-ui, sans-serif" font-size="9.5" font-weight="600">
+    <text x="612" y="174" fill="#f3a712">false alerts</text>
+    <text x="612" y="98" fill="currentColor" opacity="0.85">staleness</text>
+    <text x="612" y="84" fill="currentColor">combined</text>
+    <text x="360" y="126" fill="currentColor" font-size="9">minimum ≈ 18 mo</text>
+  </g>
+  <g font-family="system-ui, sans-serif">
+    <rect x="700" y="112" width="168" height="76" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="700" y="112" width="168" height="76" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="714" y="134" fill="currentColor" font-size="9.5" font-weight="700">The optimum moves</text>
+    <text x="714" y="154" fill="currentColor" font-size="9" opacity="0.85">Fast-changing landscapes</text>
+    <text x="714" y="168" fill="currentColor" font-size="9" opacity="0.85">need shorter windows and</text>
+    <text x="714" y="182" fill="currentColor" font-size="9" opacity="0.85">accept more false alerts.</text>
+  </g>
+</svg>
+
 ## Compliance Gating & Audit Trail Generation
 
 Every output geometry is validated against deterministic gating rules before export to carbon registry APIs, and each rule writes a parameter snapshot into the alert's lineage payload so the path from raw scene to confirmed alert is queryable end to end. This is the alert-layer expression of the [MRV data lineage and provenance tracking](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/mrv-data-lineage-provenance-tracking/) discipline.
@@ -301,6 +345,81 @@ async def process_tile_batch(
 ```
 
 By enforcing server-side computation, strict spatial partitioning, explicit metric CRS handling, and deterministic audit logging, this pipeline delivers sub-weekly deforestation alerts that withstand third-party verification while scaling to continental monitoring footprints.
+
+<svg viewBox="0 -4 880 206" role="img" aria-labelledby="clu-t clu-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="clu-t">One clearing across three runs, as three alerts or as one evolving alert</title>
+  <desc id="clu-d">A clearing that grows over three weekly runs, from 4 hectares to 11 hectares to 19 hectares. Under per-run identity, each run emits a new alert, producing three records that a recipient must reconcile and that triple the apparent event count. Under cluster identity, keyed on the spatial cluster and the first detection date, one alert is created and then updated twice, carrying its growth history and closing when the area stops changing. A panel notes that per-run identity inflates alert counts, breaks any per-event response workflow, and makes reconciliation with the period's measured area impossible.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Alert identity is a design decision, not a side effect</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">One clearing, growing across three weekly runs.</text>
+    <text x="12" y="72" fill="currentColor" font-size="10" font-weight="700">Per-run identity</text>
+    <text x="12" y="140" fill="currentColor" font-size="10" font-weight="700">Cluster identity</text>
+  </g>
+  <g>
+    <rect x="180" y="52" width="176" height="42" rx="6" fill="none" stroke="#f3a712" stroke-width="1.7" stroke-dasharray="5,3"/>
+    <text x="268" y="70" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">ALERT-8841 · 4 ha</text>
+    <text x="268" y="86" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.75">run 1</text>
+    <rect x="368" y="52" width="176" height="42" rx="6" fill="none" stroke="#f3a712" stroke-width="1.7" stroke-dasharray="5,3"/>
+    <text x="456" y="70" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">ALERT-8903 · 11 ha</text>
+    <text x="456" y="86" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.75">run 2</text>
+    <rect x="556" y="52" width="176" height="42" rx="6" fill="none" stroke="#f3a712" stroke-width="1.7" stroke-dasharray="5,3"/>
+    <text x="644" y="70" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">ALERT-8977 · 19 ha</text>
+    <text x="644" y="86" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.75">run 3</text>
+    <text x="752" y="76" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="#f3a712">3 events?</text>
+    <rect x="180" y="120" width="552" height="42" rx="6" fill="currentColor" opacity="0.14"/>
+    <rect x="180" y="120" width="552" height="42" rx="6" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <text x="456" y="138" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">ALERT-8841 · created 4 ha → updated 11 ha → updated 19 ha → closed</text>
+    <text x="456" y="154" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.8">keyed on spatial cluster + first detection date</text>
+    <text x="752" y="144" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">1 event</text>
+  </g>
+  <text x="12" y="192" font-family="system-ui, sans-serif" font-size="9.5" fill="currentColor" opacity="0.82">Per-run identity triples the event count, breaks per-event response, and makes reconciliation with the period's measured area impossible.</text>
+</svg>
+
+## Frequently Asked Questions
+
+### How long should the rolling baseline be?
+
+Long enough to characterise normal seasonal variation and short enough that the baseline has not absorbed the disturbance you want to detect — in practice twelve to twenty-four months for most forest systems. Shorter windows produce false alerts because normal seasonality looks anomalous against too little history; longer windows quietly absorb slow degradation into the baseline and stop reporting it. Tune it against a labelled sample rather than adopting a default, and re-tune when the landscape's disturbance rate changes.
+
+### Should the baseline be per-pixel or per-region?
+
+Per-pixel wherever observation density allows, because forest types, phenology, and terrain shading vary at fine scale and a regional baseline averages them into a threshold that is wrong nearly everywhere. Where a pixel has too few clear observations to support its own baseline, fall back to a stratified baseline by land-cover class and terrain, and record which pixels used which — a mixed approach is fine as long as the map does not pretend to be uniform.
+
+### How do I keep a hosted-platform prototype reproducible?
+
+Treat it as a prototype and re-implement the production path against pinned inputs. Hosted platforms change algorithm implementations and underlying collections without notice, which is entirely reasonable for an exploration tool and disqualifying for a compliance-bearing figure. Where a hosted platform must remain in the production path, pin the collection version explicitly, export the intermediate results you depend on, and store them with their digests.
+
+### What should an alert record contain?
+
+Geometry with an explicit CRS, the detection and confirmation dates bracketed by the last clear pre-event and first clear post-event observations, the confidence score with the scale it is on, the scene identifiers used, the baseline window and its parameters, and the algorithm version. That set is what lets a recipient reproduce the detection and lets a verifier assess whether the alert supports the claim built on it.
+
+### How should alerts be de-duplicated across runs?
+
+By a stable identity derived from location and event window rather than by run. A clearing that grows over three weeks should be one evolving alert, not three unrelated ones, and a pixel re-alerting after its segment was refitted is a bug rather than a new event. Key alerts on a spatial cluster identifier plus the first detection date, update rather than re-create as the cluster grows, and close the alert when the area stops changing.
+
+### How should alert confidence be expressed to a non-technical recipient?
+
+As a small number of named tiers with stated meanings, not as a raw probability. A ranger deciding whether to drive four hours needs "confirmed", "probable", and "watch" with a documented expectation for each, not a score of 0.73 whose calibration they cannot assess. Publish the historical precision of each tier so the labels are grounded in observation, and keep the underlying score in the record for anyone who wants it.
+
+### What happens to alerts once the event is confirmed on the ground?
+
+They close, with the ground observation attached. A closed alert with a field verdict is the raw material for measuring the pipeline's real precision, which is otherwise unknowable — every accuracy figure computed without field feedback is an estimate against a proxy. Build the return path from the beginning, even if it is a simple form, because retrofitting it means discarding the first years of evidence.
+
+### How do alerts interact with the annual measured figure?
+
+They should be reconciled but never summed into it. Alerts are tuned for latency and coarse spatial units; the measured figure is tuned for area accuracy with a full accuracy assessment. Comparing the two at period end is a genuinely useful control — a large divergence means one of them is miscalibrated — but adding alert areas to a measured total mixes two incompatible estimators and produces a figure that belongs to neither.
+
+### How should the baseline be seeded for a newly added area?
+
+From the archive rather than from the moment monitoring starts. A newly enrolled area has years of historical imagery available, and computing its baseline retrospectively means alerting can begin immediately rather than after a year of accumulation. The one caution is that the historical period must be checked for disturbance before it is used as a reference — a baseline computed over a window that already contains clearing encodes that clearing as normal.
+
+### What does the pipeline do when the provider changes a collection?
+
+Fails, deliberately, on the pinned collection version. Providers reprocess and republish collections, and a pipeline that resolves "the latest" silently changes its inputs mid-period. Pin the collection identifier and processing baseline, treat a change as a code change with a review, and recompute the affected periods deliberately if the new version is adopted — which is a restatement, and should be disclosed as one.
+
+### Should alert geometry be published as pixels or polygons?
+
+Polygons, generalised to a stated tolerance, with the pixel mask retained internally. Recipients act on areas, not on rasters, and a polygon carries the area attribute the response workflow needs. Keep the underlying mask so the polygon can be re-derived, and record the generalisation tolerance so the reported area is reproducible.
 
 ## Related guides
 

@@ -105,6 +105,30 @@ Three format-layer failures dominate production emissions pipelines. Each looks 
 
 3. **Mismatched chunk sizes causing read amplification under Dask.** When a Zarr array's on-disk chunk grid, or a COG's internal tile size, does not align with the block size a Dask task requests, every logical read spans multiple physical chunks and every physical chunk is fetched by multiple tasks. A 256-pixel COG tile read by workers expecting 512-pixel blocks means each Dask partition triggers four ranged reads that partly overlap its neighbours; a Zarr cube chunked `(1, 1, 4096, 4096)` but sliced per-timestep re-reads the full spatial plane for every timestep it touches. The root cause is a chunk shape chosen for writing rather than for the dominant read pattern. The observed impact is read amplification of typically 4× to 16× — more bytes fetched, more decompression, more object-store request charges — and a Dask graph whose task-stream is dominated by redundant I/O rather than computation, so adding workers stops helping.
 
+<svg viewBox="0 -4 900 228" role="img" aria-labelledby="cog-t cog-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="cog-t">Bytes fetched to read one small window, by file layout</title>
+  <desc id="cog-d">Three layouts compared for a request that needs a 512 by 512 pixel window from a 10 980 by 10 980 scene. A striped GeoTIFF requires reading every scanline that intersects the window, fetching 214 megabytes. A tiled GeoTIFF without overviews fetches 3.1 megabytes, the blocks that intersect the window. A cloud-optimised GeoTIFF with overviews and a header at the front fetches 3.1 megabytes for full resolution or 48 kilobytes from an overview level when the request is for a zoomed-out view. A panel notes that the difference is not compression but layout, and that a striped file forces a seventy-fold read amplification that no amount of concurrency fixes.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Layout, not compression, decides the read</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Bytes fetched to read one 512 × 512 window from a 10 980 × 10 980 scene.</text>
+    <text x="12" y="76" fill="currentColor" font-size="10" font-weight="700">Striped GeoTIFF</text>
+    <text x="12" y="126" fill="currentColor" font-size="10" font-weight="700">Tiled, no overviews</text>
+    <text x="12" y="176" fill="currentColor" font-size="10" font-weight="700">COG with overviews</text>
+  </g>
+  <g>
+    <rect x="196" y="58" width="480" height="26" rx="4" fill="#f3a712" opacity="0.4"/>
+    <text x="688" y="77" font-family="system-ui, sans-serif" font-size="10" font-weight="700" fill="#f3a712">214 MB — every intersecting scanline</text>
+    <rect x="196" y="108" width="8" height="26" rx="3" fill="currentColor" opacity="0.35"/>
+    <text x="214" y="127" font-family="system-ui, sans-serif" font-size="10" font-weight="700" fill="currentColor">3.1 MB — the intersecting blocks</text>
+    <rect x="196" y="158" width="8" height="26" rx="3" fill="currentColor" opacity="0.35"/>
+    <text x="214" y="177" font-family="system-ui, sans-serif" font-size="10" font-weight="700" fill="currentColor">3.1 MB full-res · 48 KB from an overview</text>
+  </g>
+  <g font-family="system-ui, sans-serif">
+    <rect x="12" y="196" width="876" height="26" rx="7" fill="currentColor" opacity="0.06"/>
+    <text x="28" y="214" fill="currentColor" font-size="9.5" font-weight="700">A striped file forces roughly seventy-fold read amplification, and no amount of request concurrency fixes it.</text>
+  </g>
+</svg>
+
 ## Deterministic Implementation Architecture
 
 The conversion below is the enforcement point for the whole format contract: it rewrites an arbitrary input raster into a valid COG with internal tiling, an overview pyramid, an appropriate compression and horizontal predictor, and an explicit CRS, then refuses to publish anything that does not pass `rio-cogeo`'s `cog_validate`. It uses `rasterio` and `rio-cogeo` for the translation and validation, `pyproj` to assert a real CRS, and `structlog` for audit-ready JSON telemetry. There is no silent pass-through — an input without a CRS, or an output the validator rejects, raises before the artefact reaches object storage. The deeper walkthrough, including profile tuning per band type, lives in [converting GeoTIFF to Cloud-Optimized GeoTIFF for emissions pipelines](https://www.spatialpipelineengineering.org/satellite-imagery-processing-for-emissions-tracking/cloud-optimized-geospatial-formats/converting-geotiff-to-cog-for-emissions-pipelines/).
@@ -246,6 +270,59 @@ Map the outputs to controls as follows. A COG that passes `cog_validate` and car
 A useful discipline is to keep the format contract itself under test rather than trusting it once at conversion time. A cheap regression suite opens each published asset over the network (not from a local copy), asserts `cog_validate` passes, asserts the overview count matches the level the writer intended, and reads a small off-centre window while measuring bytes transferred — a window read that transfers megabytes when it should transfer kilobytes is the unambiguous signature of a striped file that slipped through. Running that suite in CI against a sample of the previous release's outputs catches the two changes that most often break the contract silently: a GDAL or `rio-cogeo` version bump that alters default profiles, and an upstream provider that quietly switches its own delivery format from tiled to striped. Because the checks are pure metadata and single-window reads, they cost almost nothing and can gate every deployment.
 
 For debugging, treat three signals as monitored on every conversion, including successful ones. Track the `cog_validate` warning stream (not just pass/fail) so a slow drift toward marginal tiling surfaces before it becomes a failure; track the ratio of bytes requested to bytes used per read at the consumer, because a rising ratio is the early signature of a chunk-size mismatch inflating read amplification; and track overview presence and depth per published asset, because a batch job that quietly stops writing overviews will not fail any pixel test but will make every downstream preview scan full resolution. When a run's egress spikes without a corresponding rise in output volume, the first suspect is always a striped input that slipped past ingestion into a full-file read.
+
+<svg viewBox="0 -4 880 232" role="img" aria-labelledby="fmt-t fmt-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="fmt-t">Choosing between COG, Zarr and GeoParquet by access pattern</title>
+  <desc id="fmt-d">Three formats matched to access patterns. A cloud-optimised GeoTIFF suits single-scene, spatially windowed reads and is the interchange format everything can open. Zarr suits dense multi-dimensional cubes read along the time axis, where a COG stack would require one request per timestep. GeoParquet suits vector features and tabular results with spatial filtering, and is the natural home for the canonical MRV record. A panel notes that most carbon pipelines use all three at different stages, and that the mistake is not choosing wrongly but choosing once and forcing every stage through it.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Most pipelines need all three</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">The mistake is choosing once and forcing every stage through it.</text>
+    <rect x="12" y="52" width="280" height="140" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="12" y="52" width="280" height="140" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="28" y="76" fill="currentColor" font-size="11" font-weight="700">COG</text>
+    <text x="28" y="100" fill="currentColor" font-size="9.5" opacity="0.85">single scene, spatial window</text>
+    <text x="28" y="120" fill="currentColor" font-size="9.5" opacity="0.85">universally readable</text>
+    <text x="28" y="146" fill="currentColor" font-size="9.5" font-weight="700">the interchange format</text>
+    <text x="28" y="172" fill="currentColor" font-size="9" opacity="0.75">weak when reading across time</text>
+    <rect x="300" y="52" width="280" height="140" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="300" y="52" width="280" height="140" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="316" y="76" fill="currentColor" font-size="11" font-weight="700">Zarr</text>
+    <text x="316" y="100" fill="currentColor" font-size="9.5" opacity="0.85">dense cube, read along time</text>
+    <text x="316" y="120" fill="currentColor" font-size="9.5" opacity="0.85">chunked in every dimension</text>
+    <text x="316" y="146" fill="currentColor" font-size="9.5" font-weight="700">the analysis format</text>
+    <text x="316" y="172" fill="currentColor" font-size="9" opacity="0.75">weaker for handing to a partner</text>
+    <rect x="588" y="52" width="280" height="140" rx="9" fill="currentColor" opacity="0.12"/>
+    <rect x="588" y="52" width="280" height="140" rx="9" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <text x="604" y="76" fill="currentColor" font-size="11" font-weight="700">GeoParquet</text>
+    <text x="604" y="100" fill="currentColor" font-size="9.5" opacity="0.85">features and tabular results</text>
+    <text x="604" y="120" fill="currentColor" font-size="9.5" opacity="0.85">column pruning, predicate pushdown</text>
+    <text x="604" y="146" fill="currentColor" font-size="9.5" font-weight="700">the record format</text>
+    <text x="604" y="172" fill="currentColor" font-size="9" opacity="0.78">where the canonical MRV row lives</text>
+    <text x="12" y="216" fill="currentColor" font-size="9.5" opacity="0.82">Imagery arrives as COG, is analysed as a cube, and leaves as rows. Converting at each boundary is normal, not a smell.</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### Is a cloud-optimised GeoTIFF just a tiled GeoTIFF?
+
+Nearly, plus two things that matter: internal overviews and a header laid out at the front of the file so a reader can learn the layout in one small request. Without the front-loaded header a client must issue several requests just to discover where the blocks are; without overviews every zoomed-out read pays full resolution. Both are what make the format usable over HTTP range requests rather than merely tiled.
+
+### What compression should MRV imagery use?
+
+Deflate or LZW for lossless integer data where downstream reproducibility matters, ZSTD where the toolchain supports it for better ratios at similar speed. Avoid lossy compression for anything feeding a calculation: JPEG-compressed reflectance changes pixel values, which changes indices, which changes detected area. Where lossy compression is used for visual products, keep it strictly out of the analysis path and record which artefacts are which.
+
+### When is Zarr worth the extra complexity?
+
+When the dominant access pattern reads along time rather than space. A COG stack requires one request per timestep to build a pixel's history, which for a decade of Sentinel-2 is hundreds of requests per pixel; a Zarr store chunked across time answers the same question in a handful. If your pipeline mainly composites within a scene, COG is simpler and adequate; if it fits per-pixel time-series models, Zarr usually pays for itself.
+
+### Should overviews be built with the same resampling as analysis?
+
+They should be built with a method appropriate to the data type — averaging for continuous, nearest or mode for categorical — and they should never be used for analysis regardless. Overviews exist for display and for coarse spatial queries; reading an analysis value from an overview level silently changes the number. Where a coarse analysis is genuinely wanted, aggregate explicitly from full resolution so the aggregation is a recorded step.
+
+### How do I validate that a file is actually cloud-optimised?
+
+Run a structural validator rather than trusting the writer, and assert it in the pipeline. The common failures are an internally tiled file with no overviews, overviews present but stored after the image data, and a block size that does not match what the reader requests. Each degrades read performance without producing an error, so the check belongs in the ingestion gate alongside the CRS and unit assertions.
 
 ## Conclusion
 

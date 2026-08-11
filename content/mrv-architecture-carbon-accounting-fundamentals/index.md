@@ -4,7 +4,7 @@ Modern measurement, reporting, and verification (MRV) systems for greenhouse gas
 
 An MRV platform is not a single model; it is an accounting engine wrapped around a geospatial substrate. Activity data arrives from incompatible sources, in incompatible projections, at incompatible cadences, and must be reduced to a single number — tonnes of CO₂-equivalent — that an external auditor will attempt to break. Everything in this architecture exists to make that number reproducible: given the same inputs and the same factor versions, the pipeline must emit byte-identical results, with a recorded path explaining how each input contributed. The sections below walk the five deterministic stages, then drill into the four cross-cutting concerns — spatial alignment, compliance scoping, provenance, and production deployment — that separate a credible inventory from a rejected one.
 
-<svg viewBox="0 0 880 300" role="img" aria-label="Five-stage deterministic MRV pipeline. Heterogeneous source data feeds ingestion, spatial normalization, emission-factor application, and aggregation, then reaches the verification gates, which route passing records to the certified reporting dataset and flagged records to human auditor review." xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:880px;display:block;margin:1.5rem auto;">
+<svg viewBox="-4 68 894 238" role="img" aria-label="Five-stage deterministic MRV pipeline. Heterogeneous source data feeds ingestion, spatial normalization, emission-factor application, and aggregation, then reaches the verification gates, which route passing records to the certified reporting dataset and flagged records to human auditor review." xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:880px;display:block;margin:1.5rem auto;">
   <title>The five-stage MRV pipeline from heterogeneous inputs to certified tonnage</title>
   <desc>A source card feeds five sequential stage cards: 1 Ingestion (canonical Parquet schema), 2 Spatial normalization (unified topology and CRS), 3 Factor application (versioned factor database), 4 Aggregation (organizational-boundary consolidation), and 5 Verification gates (QA/QC and mass balance). The verification gate branches: passing records flow to the certified reporting dataset, flagged records flow to human auditor review.</desc>
   <defs>
@@ -68,7 +68,7 @@ An MRV platform is not a single model; it is an accounting engine wrapped around
   <path d="M787 188 L787 200 L760 200 L760 211" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#mrv-pipe-arrow)"/>
   <path d="M787 188 L787 200 L862 200 L862 235 L843 235" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#mrv-pipe-arrow)"/>
   <text x="744" y="208" text-anchor="end" font-size="9" font-weight="600" fill="currentColor" opacity="0.75">pass</text>
-  <text x="858" y="222" text-anchor="end" font-size="9" font-weight="600" fill="currentColor" opacity="0.75">flagged</text>
+  <text x="874" y="200" text-anchor="end" font-size="9" font-weight="600" fill="currentColor" opacity="0.75">flagged</text>
 </svg>
 
 ## Core Pipeline Architecture
@@ -148,6 +148,45 @@ Compliance mapping extends well beyond the GHG Protocol. [ISO 14064-1:2018](http
 
 The architectural consequence is that every certified figure must be tagged with the regulatory metadata that lets an auditor reconstruct its basis: the framework and version, the consolidation approach, the materiality threshold applied, and an uncertainty band. Spatial outputs carry the same tags at feature granularity, so that a single converted parcel can be traced to the methodology that credited it. Encoding scoping rules as versioned, queryable metadata — rather than as hard-coded branches — means a change in CSRD interpretation is a data update with its own effective date, not a code deploy that silently rewrites history. The uncertainty band is itself a compliance artifact: ISO 14064-3 and the Verra methodologies require that estimates be reported with their uncertainty, and where the uncertainty is derived from [emission factor uncertainty mapping](https://www.spatialpipelineengineering.org/spatial-modeling-carbon-stock-validation/emission-factor-uncertainty-mapping/) the propagation path must be auditable end to end.
 
+<svg viewBox="0 -4 900 268" role="img" aria-labelledby="scope-t scope-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="scope-t">How one physical facility produces different reported tonnages under different scoping and consolidation rules</title>
+  <desc id="scope-d">A single facility emitting 120 kilotonnes of carbon dioxide equivalent is shown feeding three reporting entities. The operator, holding a 100 percent operational control interest, reports the full 120 as Scope 1. A joint-venture partner holding a 40 percent equity share reports 48 under the equity-share approach and nothing under operational control. A downstream customer purchasing 30 percent of the output reports 36 as Scope 3 category 1. A panel notes that the total reported across entities exceeds the physical emission, which is expected and correct, and that the pipeline must therefore carry the consolidation rule as data on every record rather than assuming one.</desc>
+  <defs>
+    <marker id="scope-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+    </marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" text-anchor="middle">
+    <rect x="12" y="94" width="164" height="76" rx="9" fill="currentColor" opacity="0.1"/>
+    <rect x="12" y="94" width="164" height="76" rx="9" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <text x="94" y="120" fill="currentColor" font-size="10.5" font-weight="700">One facility</text>
+    <text x="94" y="144" fill="currentColor" font-size="15" font-weight="700">120 ktCO₂e</text>
+    <text x="94" y="160" fill="currentColor" font-size="9" opacity="0.78">physically emitted</text>
+    <rect x="266" y="14" width="286" height="62" rx="9" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <text x="409" y="38" fill="currentColor" font-size="10.5" font-weight="700">Operator · 100% operational control</text>
+    <text x="409" y="60" fill="currentColor" font-size="10">reports 120 as Scope 1</text>
+    <rect x="266" y="100" width="286" height="62" rx="9" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <text x="409" y="124" fill="currentColor" font-size="10.5" font-weight="700">JV partner · 40% equity share</text>
+    <text x="409" y="146" fill="currentColor" font-size="10">reports 48 under equity share · 0 under control</text>
+    <rect x="266" y="186" width="286" height="62" rx="9" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <text x="409" y="210" fill="currentColor" font-size="10.5" font-weight="700">Customer · buys 30% of output</text>
+    <text x="409" y="232" fill="currentColor" font-size="10">reports 36 as Scope 3 category 1</text>
+    <rect x="596" y="80" width="292" height="104" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="596" y="80" width="292" height="104" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="742" y="106" fill="currentColor" font-size="10.5" font-weight="700">Sum across entities &gt; 120</text>
+    <text x="742" y="130" fill="currentColor" font-size="9.5" opacity="0.85">This is correct, not a double count —</text>
+    <text x="742" y="146" fill="currentColor" font-size="9.5" opacity="0.85">each entity reports its own boundary.</text>
+    <text x="742" y="170" fill="#f3a712" font-size="9.5" font-weight="700">So the rule must travel on the record.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1.4" fill="none" marker-end="url(#scope-arrow)">
+    <path d="M176 116 C 214 104, 224 54, 264 45"/>
+    <line x1="176" y1="132" x2="264" y2="131"/>
+    <path d="M176 148 C 214 160, 224 208, 264 217"/>
+  </g>
+</svg>
+
+The diagram makes concrete why consolidation cannot be a pipeline default. The same physical tonne legitimately appears in three different inventories under three different rules, and a pipeline that hard-codes one of them produces figures that are correct for one reporting entity and silently wrong for the others. Carrying `consolidation_rule` and `reporting_entity` as columns — rather than as configuration — is what lets a single certified dataset serve every entity that has a claim on it, and lets an auditor re-derive any one of them.
+
 ## Audit Trails, Lineage & Provenance
 
 Institutional audits demand more than final emission totals; they require complete, immutable data lineage. Every transformation — from raw telemetry ingestion through CRS transformation, factor multiplication, and spatial aggregation — must generate a cryptographically signed provenance record. Implementing [MRV Data Lineage & Provenance Tracking](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/mrv-data-lineage-provenance-tracking/) lets auditors reconstruct the exact computational path that produced a figure, including the factor versions, CRS transformations, and consolidation rules applied at runtime. The defensibility test is concrete: an auditor points at a single tonne in the certified report and asks which inputs, which factors, and which code produced it. A pipeline that cannot answer that question line by line has not produced an inventory; it has produced an assertion.
@@ -223,6 +262,81 @@ Validation is layered. Geometry integrity is covered by automated unit tests ass
 Uncertainty quantification follows Monte Carlo simulation or analytical error propagation, with confidence intervals reported alongside every point estimate rather than appended as a footnote. Where activity data carries measurement error and factors carry their own published uncertainty, the pipeline propagates both to a 95% interval on the final tonnage, and that interval — not just the point estimate — is what the compliance layer tags and the auditor evaluates against the materiality threshold. Inputs sourced from [spatial modeling and carbon stock validation](https://www.spatialpipelineengineering.org/spatial-modeling-carbon-stock-validation/) arrive with their own uncertainty surfaces, which must be combined rather than discarded.
 
 All outputs are serialized into standardized formats — XBRL for CSRD digital tagging, ISO 14064-compliant JSON-LD, or registry-specific submission packages — so that the certified dataset is machine-ingestible by regulatory portals and third-party verification bodies without manual re-keying. Containerized deployments enforce resource quotas, implement circuit breakers around external dependencies such as grid-factor APIs (so a stale upstream factor degrades gracefully rather than poisoning a run), and maintain read-only replicas for audit access so that an auditor can query the certified zone without any path to mutate it. The deployment posture, in short, mirrors the accounting posture: every figure is reproducible, every change is logged, and the certified record is immutable by construction.
+
+<svg viewBox="-4 44 908 226" role="img" aria-labelledby="zone-t zone-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="zone-t">Three storage zones and the gates that separate them</title>
+  <desc id="zone-d">Three storage zones drawn left to right. The raw zone holds immutable source files with their checksums and is append-only with no deletions. A promotion gate between raw and curated enforces schema conformance, unit declaration, and coordinate reference system presence. The curated zone holds the canonical Parquet with typed columns and equal-area geometry, and is re-derivable from raw. A certification gate between curated and certified enforces validation gates, reconciliation, uncertainty bounds, and a signed manifest. The certified zone holds reportable figures, is immutable and signed, and is the only zone a disclosure may cite. Arrows show that promotion is one-directional and that a correction re-enters at raw rather than editing a certified record.</desc>
+  <defs>
+    <marker id="zone-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+    </marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" text-anchor="middle">
+    <rect x="12" y="60" width="212" height="104" rx="9" fill="currentColor" opacity="0.05"/>
+    <rect x="12" y="60" width="212" height="104" rx="9" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <text x="118" y="86" fill="currentColor" font-size="11" font-weight="700">Raw zone</text>
+    <text x="118" y="108" fill="currentColor" font-size="9.5" opacity="0.8">source files + checksums</text>
+    <text x="118" y="126" fill="currentColor" font-size="9.5" opacity="0.8">append-only, never deleted</text>
+    <text x="118" y="148" fill="currentColor" font-size="9" opacity="0.7">the only place messy reality lives</text>
+    <rect x="264" y="60" width="212" height="104" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="264" y="60" width="212" height="104" rx="9" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <text x="370" y="86" fill="currentColor" font-size="11" font-weight="700">Curated zone</text>
+    <text x="370" y="108" fill="currentColor" font-size="9.5" opacity="0.8">canonical Parquet, typed</text>
+    <text x="370" y="126" fill="currentColor" font-size="9.5" opacity="0.8">equal-area geometry</text>
+    <text x="370" y="148" fill="currentColor" font-size="9" opacity="0.7">fully re-derivable from raw</text>
+    <rect x="516" y="60" width="212" height="104" rx="9" fill="currentColor" opacity="0.12"/>
+    <rect x="516" y="60" width="212" height="104" rx="9" fill="none" stroke="currentColor" stroke-width="1.9"/>
+    <text x="622" y="86" fill="currentColor" font-size="11" font-weight="700">Certified zone</text>
+    <text x="622" y="108" fill="currentColor" font-size="9.5" opacity="0.8">reportable figures, signed</text>
+    <text x="622" y="126" fill="currentColor" font-size="9.5" opacity="0.8">immutable</text>
+    <text x="622" y="148" fill="currentColor" font-size="9" opacity="0.7">the only zone a disclosure cites</text>
+    <rect x="248" y="182" width="196" height="72" rx="8" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="5,3"/>
+    <text x="346" y="202" fill="currentColor" font-size="9.5" font-weight="700">Promotion gate</text>
+    <text x="346" y="220" fill="currentColor" font-size="9" opacity="0.8">schema · units · CRS present</text>
+    <text x="346" y="238" fill="currentColor" font-size="9" opacity="0.8">reject, never coerce</text>
+    <rect x="500" y="182" width="196" height="72" rx="8" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="5,3"/>
+    <text x="598" y="202" fill="currentColor" font-size="9.5" font-weight="700">Certification gate</text>
+    <text x="598" y="220" fill="currentColor" font-size="9" opacity="0.8">validation · reconciliation</text>
+    <text x="598" y="238" fill="currentColor" font-size="9" opacity="0.8">uncertainty · signed manifest</text>
+    <rect x="748" y="60" width="140" height="104" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="748" y="60" width="140" height="104" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="818" y="88" fill="currentColor" font-size="9.5" font-weight="700">A correction</text>
+    <text x="818" y="108" fill="currentColor" font-size="9" opacity="0.82">re-enters at raw</text>
+    <text x="818" y="126" fill="#f3a712" font-size="9" font-weight="700">never edits a</text>
+    <text x="818" y="142" fill="#f3a712" font-size="9" font-weight="700">certified record</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1.5" fill="none" marker-end="url(#zone-arrow)">
+    <line x1="224" y1="112" x2="262" y2="112"/>
+    <line x1="476" y1="112" x2="514" y2="112"/>
+    <line x1="346" y1="180" x2="346" y2="166" stroke-dasharray="4,3"/>
+    <line x1="598" y1="180" x2="598" y2="166" stroke-dasharray="4,3"/>
+    <path d="M780 164 C 700 250, 240 250, 118 168" stroke-dasharray="6,4"/>
+  </g>
+</svg>
+
+The zone separation is what makes a restatement survivable. When a figure has to change — a revised factor table, a corrected boundary, a discovered defect — the correction enters at the raw zone and flows forward through both gates, producing a new certified artefact alongside the old one rather than mutating it. The previously published figure remains retrievable, which is exactly what a verifier needs in order to understand what changed and why, and exactly what an in-place edit destroys.
+
+## Frequently Asked Questions
+
+### How strictly should ingestion reject malformed input?
+
+Completely, and with a typed error naming the field. Ingestion is the only stage that faces messy reality, and every coercion it performs becomes an undocumented assumption that a verifier will eventually find. A utility invoice arriving in kilowatt-hours where the schema declares megajoules should fail at the door, not be rescaled by an implicit guess three stages later. The operational cost is real — someone has to fix the source — but it is paid once, at ingestion, rather than repeatedly during verification when nobody can reconstruct which records were silently adjusted.
+
+### Why must the emission factor be bound by version rather than looked up at run time?
+
+Because re-running the 2024 inventory in 2026 must yield the 2024 numbers. Factor databases are revised as science and grid mixes change, and a pipeline that reads "the current factor" produces a different answer every time it runs, which makes both replay and defence impossible. Binding an explicit `factor_id`, `factor_version`, and effective date on every multiplication turns the factor store into an append-only bitemporal record and turns the calculation into a reproducible function of its declared inputs.
+
+### What does "single-pass reprojection" actually protect against?
+
+Cumulative coordinate drift. Every reprojection resamples and re-snaps geometry, and floating-point error accumulates across a chain of them; a dozen warps across iterative change-detection cycles move vertices by amounts that eventually break topology and trigger false change. Reprojecting exactly once from the authoritative source — never from a previously reprojected derivative — removes the accumulation entirely, at the cost of keeping the authoritative source addressable, which the raw zone already guarantees.
+
+### How do the five stages map onto an orchestrator's tasks?
+
+Not one-to-one, and forcing them to is a common early mistake. A stage is a contract boundary — an immutable, addressable artefact that the next stage reads — while an orchestrator task is a unit of scheduling, and a single stage typically fans out over thousands of tile-month tasks. Keep the stage boundaries as the places where artefacts are committed and invariants asserted, and let the orchestrator partition work within a stage however suits its execution model.
+
+### Where should uncertainty be attached — to the record or to the report?
+
+Both, and they are different quantities. Per-record uncertainty travels with the measurement and is what allows a downstream aggregation to propagate error correctly rather than treating every input as exact. Report-level uncertainty is the propagated result plus the model and methodological terms that only exist at the aggregate. A pipeline that carries only the second cannot re-aggregate to a different boundary; one that carries only the first cannot state a defensible figure. Carry per-record intervals as columns and compute the report-level figure from them at aggregation time.
 
 ## Conclusion
 

@@ -262,6 +262,29 @@ This logic guarantees that every geometry is reprojected using a verified transf
   <text x="360" y="373" text-anchor="middle" font-size="9" fill="currentColor" opacity="0.75">the WGS84 area fails; only the equal-area measurement advances to carbon stock accounting</text>
 </svg>
 
+<svg viewBox="0 -4 880 224" role="img" aria-labelledby="axis-t axis-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="axis-t">Axis-order confusion, and why always_xy exists</title>
+  <desc id="axis-d">Two panels. On the left, with always_xy set to true, a point at longitude 12.5 and latitude 55.7 is passed as x then y, transforms correctly, and lands in Denmark. On the right, without always_xy, the EPSG authority definition orders EPSG 4326 as latitude then longitude, so the same tuple is interpreted as longitude 55.7 and latitude 12.5 and lands in the Arabian Sea, roughly four thousand kilometres away. A note states that the failure is loud when the swapped point leaves the plausible region and silent when it does not, which is why a bounding-box assertion belongs immediately after every transformation.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">The same tuple, two interpretations</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">EPSG:4326's authority definition is latitude-first. Most Python code is longitude-first.</text>
+    <rect x="12" y="52" width="420" height="128" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="12" y="52" width="420" height="128" rx="9" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <text x="28" y="76" fill="currentColor" font-size="10.5" font-weight="700">always_xy=True</text>
+    <text x="28" y="100" fill="currentColor" font-size="9.5" opacity="0.85">(12.5, 55.7) read as (lon, lat)</text>
+    <text x="28" y="124" fill="currentColor" font-size="9.5" font-weight="700">lands in Denmark ✓</text>
+    <text x="28" y="150" fill="currentColor" font-size="9" opacity="0.72">matches how every GeoJSON, shapely geometry</text>
+    <text x="28" y="166" fill="currentColor" font-size="9" opacity="0.72">and mapping library already behaves</text>
+    <rect x="448" y="52" width="420" height="128" rx="9" fill="none" stroke="#f3a712" stroke-width="1.8" stroke-dasharray="6,3"/>
+    <text x="464" y="76" fill="currentColor" font-size="10.5" font-weight="700">without always_xy</text>
+    <text x="464" y="100" fill="currentColor" font-size="9.5" opacity="0.85">(12.5, 55.7) read as (lat, lon)</text>
+    <text x="464" y="124" fill="#f3a712" font-size="9.5" font-weight="700">lands in the Arabian Sea — 4 000 km away</text>
+    <text x="464" y="150" fill="currentColor" font-size="9" opacity="0.72">loud when the point leaves the plausible region,</text>
+    <text x="464" y="166" fill="#f3a712" font-size="9" font-weight="700">silent when it does not</text>
+    <text x="12" y="208" fill="currentColor" font-size="9.5" opacity="0.82">Set always_xy, and assert the transformed bounding box against the expected region — the assertion is what catches the silent case.</text>
+  </g>
+</svg>
+
 ## Compliance Gating & Audit Trail Generation
 
 Carbon registries require immutable lineage tracking for spatial data. Every transformation must record the source CRS, target CRS, transformation operations, grid files used, timestamp, and distortion metrics. The following routine attaches an audit-ready lineage dictionary to the GeoDataFrame and exports it alongside the spatial payload, satisfying [MRV data lineage requirements](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/mrv-data-lineage-provenance-tracking/):
@@ -314,6 +337,101 @@ Final pipeline execution pattern:
 6. Submit to the registry with the attached audit JSON.
 
 This deterministic workflow eliminates angular distortion, satisfies GHG Protocol spatial mapping mandates, and produces verification-ready spatial assets for carbon accounting pipelines.
+
+<svg viewBox="0 -4 880 228" role="img" aria-labelledby="ord-t ord-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="ord-t">Correct and incorrect orderings of validate, repair, reproject and compute</title>
+  <desc id="ord-d">Two sequences. The correct order validates the coordinate reference system, repairs invalid geometry, reprojects once to the equal-area analysis projection, and then computes area and intersections, yielding a stable result. The incorrect order reprojects first and repairs afterwards, so the repair operates on already-distorted geometry and can move vertices in the projected space, changing area by an amount that depends on the projection rather than on the defect. A note states that repair before reprojection keeps the correction in the space the data was surveyed in, which is the space where the defect actually exists.</desc>
+  <defs>
+    <marker id="ord-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+    </marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" text-anchor="middle">
+    <text x="440" y="16" fill="currentColor" font-size="11.5" font-weight="700">Order matters more than any single step</text>
+    <text x="440" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Repair belongs in the space the geometry was surveyed in.</text>
+    <text x="60" y="76" fill="currentColor" font-size="10" font-weight="700">Correct</text>
+    <rect x="120" y="56" width="150" height="40" rx="7" fill="currentColor" opacity="0.12"/>
+    <rect x="120" y="56" width="150" height="40" rx="7" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <text x="195" y="81" fill="currentColor" font-size="9.5" font-weight="700">validate CRS</text>
+    <rect x="296" y="56" width="150" height="40" rx="7" fill="currentColor" opacity="0.12"/>
+    <rect x="296" y="56" width="150" height="40" rx="7" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <text x="371" y="81" fill="currentColor" font-size="9.5" font-weight="700">repair geometry</text>
+    <rect x="472" y="56" width="150" height="40" rx="7" fill="currentColor" opacity="0.12"/>
+    <rect x="472" y="56" width="150" height="40" rx="7" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <text x="547" y="81" fill="currentColor" font-size="9.5" font-weight="700">reproject once</text>
+    <rect x="648" y="56" width="150" height="40" rx="7" fill="currentColor" opacity="0.18"/>
+    <rect x="648" y="56" width="150" height="40" rx="7" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <text x="723" y="81" fill="currentColor" font-size="9.5" font-weight="700">compute area</text>
+    <text x="60" y="156" fill="currentColor" font-size="10" font-weight="700">Wrong</text>
+    <rect x="120" y="136" width="150" height="40" rx="7" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="5,3"/>
+    <text x="195" y="161" fill="currentColor" font-size="9.5">validate CRS</text>
+    <rect x="296" y="136" width="150" height="40" rx="7" fill="none" stroke="#f3a712" stroke-width="1.8" stroke-dasharray="5,3"/>
+    <text x="371" y="161" fill="#f3a712" font-size="9.5" font-weight="700">reproject</text>
+    <rect x="472" y="136" width="150" height="40" rx="7" fill="none" stroke="#f3a712" stroke-width="1.8" stroke-dasharray="5,3"/>
+    <text x="547" y="161" fill="#f3a712" font-size="9.5" font-weight="700">repair in projected space</text>
+    <rect x="648" y="136" width="150" height="40" rx="7" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="5,3"/>
+    <text x="723" y="161" fill="currentColor" font-size="9.5">compute area</text>
+    <text x="440" y="210" fill="currentColor" font-size="9.5" opacity="0.85">Repairing after reprojection moves vertices in a distorted space, so the area change depends on the projection, not the defect.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1.4" fill="none" marker-end="url(#ord-arrow)">
+    <line x1="270" y1="76" x2="294" y2="76"/><line x1="446" y1="76" x2="470" y2="76"/><line x1="622" y1="76" x2="646" y2="76"/>
+    <line x1="270" y1="156" x2="294" y2="156"/><line x1="446" y1="156" x2="470" y2="156"/><line x1="622" y1="156" x2="646" y2="156"/>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### Does the always-xy option change the data, or only the interpretation?
+
+Only the interpretation of the coordinate tuples you pass in and receive back. It tells PROJ to use longitude-then-latitude ordering regardless of what the authority definition says, which matches how GeoJSON, shapely, and essentially every Python geospatial library already behave. Setting it makes your code agree with your data; leaving it unset makes your code agree with the EPSG registry, which nothing else in your stack does. Set it, and assert the resulting bounding box anyway.
+
+### Should I repair geometry before or after reprojection?
+
+Before. A repair operating on projected coordinates moves vertices in a distorted space, so how much area the repair changes depends on the projection rather than on the defect being fixed. Repairing in the source space keeps the correction where the geometry was surveyed, and the subsequent single reprojection then carries a valid geometry into the analysis projection. The one exception is a defect that only manifests after projection — an anti-meridian wrap, most commonly — which must be handled by splitting before reprojection rather than by repairing after it.
+
+### What tolerance should a geometry repair use?
+
+As small as will resolve the defect, and recorded. `make_valid` and buffer-zero repairs both move vertices, and a generous tolerance quietly changes area across a whole portfolio. Start at the coordinate precision of the source data, escalate only for geometries that still fail, and record the tolerance applied per feature so an area difference can be attributed. Features requiring a large tolerance should be quarantined rather than repaired, because a geometry that needs metres of movement to become valid is a data problem, not a rounding problem.
+
+### How do I choose the local CRS when a project spans a national boundary?
+
+Prefer a single equal-area projection covering both sides over two national grids stitched together. National grids are optimised for their own territory and their overlap region is where their distortion is highest, so a cross-border project processed in two grids has its largest errors exactly at the boundary that matters most. Where a national grid is mandated for submission, compute in a single equal-area CRS and reproject to each national grid only for the deliverable, recording both.
+
+### Is it ever acceptable to reproject a derived product rather than the source?
+
+Only for display. Every analysis output — areas, intersections, zonal statistics — must trace back to a single reprojection from the authoritative source, because chained warps accumulate drift and, more importantly, make the provenance chain ambiguous about which geometry produced the number. Where a downstream consumer needs a different projection, give them the source plus the transformation rather than a twice-projected derivative.
+
+### What is the difference between a datum transformation and a projection change?
+
+A projection change re-expresses the same positions on the same reference ellipsoid in a different flat coordinate system — nothing physical moves. A datum transformation changes the reference frame itself, so positions genuinely shift relative to the ground, sometimes by hundreds of metres. Most real reprojections do both at once, which is why the operation description matters: it names the datum step, and the datum step is where a missing grid causes a silent error. A projection-only change cannot go wrong in that way.
+
+### How should a pipeline handle data arriving in a projected CRS already?
+
+Validate that its declared CRS is plausible, then reproject once from it to the analysis CRS — do not attempt to reverse-engineer geographic coordinates first. Round-tripping through geographic coordinates adds a transformation step for no benefit and introduces exactly the datum ambiguity you are trying to avoid. Where the declared CRS looks wrong, the bounding-box plausibility test catches it, and the correct response is to reject the input rather than to guess a better CRS.
+
+### What should be logged for every reprojection?
+
+Source and target definitions, the selected operation, the number of features or pixels transformed, the area residual against a geodesic reference, and the elapsed time. The first two make the transform reproducible, the third and fourth make it verifiable, and the fifth turns a slow grid lookup into a visible signal rather than an unexplained slowdown. Log them at INFO on every run, not only on failure, so trends are available when something changes upstream.
+
+### Are there cases where reprojecting is the wrong answer?
+
+Yes: when the question can be answered on the ellipsoid directly. Distance and area between a small number of features are computed exactly by geodesic functions with no projection at all, which avoids the choice entirely and is often simpler. Reprojection earns its place when you need a planar space for many operations — intersections, rasters, zonal statistics — where a per-feature geodesic computation would be impractical.
+
+### How should the transformation be tested?
+
+With a small set of control points whose coordinates are known in both frames, asserted on every run rather than checked once. Published geodetic control, a national survey monument, or even a stable, well-surveyed corner of the project all work; what matters is that the expected output coordinates are stored as test data and compared automatically. A transformation that quietly changes because a grid package was upgraded then fails a test rather than silently shifting a boundary.
+
+### What about vertical coordinates?
+
+They need the same discipline and are more often neglected. Elevation referenced to a local vertical datum differs from ellipsoidal height by tens of metres, and the difference varies spatially through the geoid model. For carbon work the impact is mostly indirect — terrain correction, canopy height, and slope-dependent radiometric correction all consume elevation — but a mismatched vertical datum biases all three consistently across a scene. Declare the vertical datum alongside the horizontal one and treat an undeclared one as a rejection.
+
+### How should a pipeline handle mixed-CRS inputs in a single batch?
+
+Group by source CRS, transform each group once, and assert the result. Iterating feature by feature and reprojecting each individually is both slow and error-prone, because the transformation is re-resolved per feature and a single untagged record can silently take a different path. Grouping makes the transformation set explicit and small — usually two or three operations for a real batch — and each one can then be logged and checked as a unit.
+
+### What is a reasonable batch size for reprojection?
+
+Large enough that the transformation setup is amortised and small enough that a failure is cheap to retry: tens of thousands of features per call is comfortable for vector work, and one tile per call for rasters. The setup cost is not trivial, since resolving an operation may involve a grid lookup, so per-feature calls can be an order of magnitude slower than a single batched transform over the same data.
 
 ## Related guides
 

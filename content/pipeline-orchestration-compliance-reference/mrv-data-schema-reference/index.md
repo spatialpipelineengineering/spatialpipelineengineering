@@ -108,6 +108,40 @@ Three failure modes dominate production MRV schema management. Each is silent by
 
 3. **Unversioned emission-factor joins making runs irreproducible.** The root cause is joining against a *mutable* emission-factor table — a database view, a "latest" CSV, an API endpoint that returns whatever is current — without recording which release was used. The run succeeds, the numbers look fine, and six months later the same pipeline over the same inputs produces different figures because the factor table was revised in the interim. Observed impact: the reporting period can no longer be reconstructed bit-for-bit, which fails the reproducibility requirement of ISO 14064-3 outright; a verifier who reruns the pipeline gets a number that disagrees with the submitted one and has no way to tell whether the discrepancy is an error or an unrecorded factor update. The fix is to pin every join to an immutable, semantically versioned factor release and to persist that `ef_version` in the row itself — the discipline detailed in [versioning emission-factor databases for reproducible MRV](https://www.spatialpipelineengineering.org/pipeline-orchestration-compliance-reference/mrv-data-schema-reference/versioning-emission-factor-databases-for-reproducible-mrv/).
 
+<svg viewBox="0 -4 900 230" role="img" aria-labelledby="sch-t sch-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="sch-t">Schema change classes and what each one costs</title>
+  <desc id="sch-d">Four change classes with their compatibility and cost. Adding an optional column is backward compatible and costs nothing to existing readers. Adding a required column is forward-incompatible for writers but readable by old consumers, and requires a backfill. Widening a type, such as integer to double, is readable by new consumers only and requires coordinated deployment. Changing a column's meaning under a stable name is compatible at the type level and silently invalidates every historical comparison, marked as the one to never do. A panel states that the fourth is the only class that produces no error anywhere and is therefore the only one that needs a policy rather than a migration.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Only one schema change is genuinely dangerous</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Three cause errors you can fix. The fourth causes none.</text>
+    <rect x="12" y="52" width="212" height="152" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="12" y="52" width="212" height="152" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="28" y="76" fill="currentColor" font-size="10.5" font-weight="700">Add optional column</text>
+    <text x="28" y="102" fill="currentColor" font-size="9.5" opacity="0.85">backward compatible</text>
+    <text x="28" y="122" fill="currentColor" font-size="9.5" opacity="0.85">old readers unaffected</text>
+    <text x="28" y="152" fill="currentColor" font-size="9.5" font-weight="700">cost: none</text>
+    <rect x="236" y="52" width="212" height="152" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="236" y="52" width="212" height="152" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="252" y="76" fill="currentColor" font-size="10.5" font-weight="700">Add required column</text>
+    <text x="252" y="102" fill="currentColor" font-size="9.5" opacity="0.85">writers must change first</text>
+    <text x="252" y="122" fill="currentColor" font-size="9.5" opacity="0.85">old data lacks it</text>
+    <text x="252" y="152" fill="currentColor" font-size="9.5" font-weight="700">cost: a backfill</text>
+    <rect x="460" y="52" width="212" height="152" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="460" y="52" width="212" height="152" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="476" y="76" fill="currentColor" font-size="10.5" font-weight="700">Widen a type</text>
+    <text x="476" y="102" fill="currentColor" font-size="9.5" opacity="0.85">int32 → float64</text>
+    <text x="476" y="122" fill="currentColor" font-size="9.5" opacity="0.85">new readers only</text>
+    <text x="476" y="152" fill="currentColor" font-size="9.5" font-weight="700">cost: coordinated deploy</text>
+    <rect x="684" y="52" width="204" height="152" rx="9" fill="none" stroke="#f3a712" stroke-width="2" stroke-dasharray="6,3"/>
+    <text x="700" y="76" fill="currentColor" font-size="10.5" font-weight="700">Redefine a meaning</text>
+    <text x="700" y="102" fill="currentColor" font-size="9.5" opacity="0.85">same name, same type,</text>
+    <text x="700" y="122" fill="currentColor" font-size="9.5" opacity="0.85">different quantity</text>
+    <text x="700" y="146" fill="#f3a712" font-size="9.5" font-weight="700">no error, anywhere</text>
+    <text x="700" y="166" fill="#f3a712" font-size="9.5" font-weight="700">every history invalidated</text>
+    <text x="700" y="186" fill="currentColor" font-size="9" opacity="0.78">policy, not migration: never do it</text>
+  </g>
+</svg>
+
 ## Deterministic Implementation Architecture
 
 The enforcement point is a single contract-validation function invoked at every pipeline boundary that writes to the canonical store. It validates dtypes against an explicit `pyarrow` schema, asserts the declared CRS on the GeoParquet metadata, range-checks the unit-bearing columns to catch magnitude errors, and requires the version columns to be present and non-null. Anything that fails is raised — never coerced, never silently dropped — and the rejection is logged as a structured event so the quarantine record carries a machine-readable reason. The function below uses `pyarrow` for the authoritative type check and `pandera` for the column-level predicate layer, with `structlog` emitting audit-ready JSON telemetry on every decision.
@@ -252,6 +286,66 @@ Each design decision in the gate maps to a specific regulatory control, which is
 Mapping the gate to disclosure obligations is equally direct. **CSRD ESRS E1** demands auditable, traceable climate metrics with explicit data-quality treatment; a canonical store where every row carries its schema version, its emission-factor version, and its declared uncertainty is precisely the traceable substrate an assurance provider needs, and the quarantine stream provides the documented evidence that non-conformant data was excluded rather than quietly absorbed. The dead-letter records themselves are a compliance asset: each carries a structured rejection reason, so an auditor can see not only what entered the store but what was kept out and why.
 
 For debugging, treat three signals as monitored on every run, including the runs that pass. The **quarantine rate** is the leading indicator of upstream drift — a producer that begins emitting a renamed or retyped column shows up as a sudden spike in gate rejections long before any figure is wrong downstream. The **distribution of `emissions` magnitudes** surfaces creeping unit errors that stay just inside the plausibility envelope; a producer that switches units on a low-emissions parcel may not breach the hard gate, but the distribution will shift by orders of magnitude and a percentile monitor will catch it. The **set of distinct `ef_version` values** per reporting period reveals unpinned joins: a period that should reference a single frozen factor release but shows several versions is evidence that some path bypassed the pin. Contract tests belong in continuous integration as well as at runtime — a `pytest` suite that writes deliberately malformed fixtures (a dropped column, a kg-scaled value, an undeclared CRS, an unpinned version) and asserts that `validate_canonical_write` raises on each is what stops a refactor from silently loosening the contract. That test suite is the schema's own regression harness, and it is inseparable from the [data lineage and provenance tracking](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/mrv-data-lineage-provenance-tracking/) layer that records which contract version every archived figure was validated against.
+
+<svg viewBox="0 -4 880 224" role="img" aria-labelledby="unit-t unit-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="unit-t">Where the unit contract has to be written so it survives every hop</title>
+  <desc id="unit-d">A dataset travelling through four hops, with the places a unit declaration can live. In the column name only, the unit survives the Parquet write but is lost on any rename or projection. In a sidecar document, it survives locally but is lost when the file is copied. In the Parquet field metadata, it travels inside the file and survives copies, renames, and format-preserving transfers. In a validation gate that asserts the metadata on read, it also survives a producer that forgets to write it. A panel notes that only the last two combinations survive a file arriving from a partner with no context at all.</desc>
+  <defs>
+    <marker id="unit-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+    </marker>
+  </defs>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Where you write the unit decides whether it survives</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Four hops: write, copy, rename, hand to a partner.</text>
+    <rect x="12" y="52" width="424" height="70" rx="8" fill="currentColor" opacity="0.05"/>
+    <rect x="12" y="52" width="424" height="70" rx="8" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="28" y="74" fill="currentColor" font-size="10" font-weight="700">In the column name</text>
+    <text x="28" y="94" fill="currentColor" font-size="9.5" opacity="0.85">co2e_tonnes</text>
+    <text x="28" y="112" fill="#f3a712" font-size="9.5" font-weight="700">lost on any rename or projection</text>
+    <rect x="456" y="52" width="412" height="70" rx="8" fill="currentColor" opacity="0.05"/>
+    <rect x="456" y="52" width="412" height="70" rx="8" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="472" y="74" fill="currentColor" font-size="10" font-weight="700">In a sidecar document</text>
+    <text x="472" y="94" fill="currentColor" font-size="9.5" opacity="0.85">schema.md next to the file</text>
+    <text x="472" y="112" fill="#f3a712" font-size="9.5" font-weight="700">lost the first time the file is copied</text>
+    <rect x="12" y="134" width="424" height="70" rx="8" fill="currentColor" opacity="0.12"/>
+    <rect x="12" y="134" width="424" height="70" rx="8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <text x="28" y="156" fill="currentColor" font-size="10" font-weight="700">In the Parquet field metadata</text>
+    <text x="28" y="176" fill="currentColor" font-size="9.5" opacity="0.85">travels inside the file itself</text>
+    <text x="28" y="194" fill="currentColor" font-size="9.5" font-weight="700">survives copy, rename, transfer</text>
+    <rect x="456" y="134" width="412" height="70" rx="8" fill="currentColor" opacity="0.12"/>
+    <rect x="456" y="134" width="412" height="70" rx="8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <text x="472" y="156" fill="currentColor" font-size="10" font-weight="700">…and asserted on read</text>
+    <text x="472" y="176" fill="currentColor" font-size="9.5" opacity="0.85">a gate that refuses an undeclared unit</text>
+    <text x="472" y="194" fill="currentColor" font-size="9.5" font-weight="700">survives a producer who forgets</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1.4" fill="none" marker-end="url(#unit-arrow)" opacity="0.6">
+    <line x1="224" y1="126" x2="224" y2="132"/>
+    <line x1="662" y1="126" x2="662" y2="132"/>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### Why is the schema published as an artefact rather than defined in code?
+
+Because every stage and every consumer needs to validate against the same definition, including consumers you do not control. A schema living inside one repository becomes that repository's private convention, and other stages drift from it in ways nobody notices until a downstream join silently drops rows. Publishing it as a versioned artefact — with types, units, nullability, and the CRS constraint — lets each stage assert against an external truth and lets an auditor read the data dictionary without reading the implementation.
+
+### How should units be attached to columns?
+
+In the Parquet field metadata, and asserted on read. Encoding units in the column name is better than nothing but is lost on any rename or projection; a sidecar document is lost the first time the file is copied. Field metadata travels inside the file, survives copies and transfers, and can be checked by a gate that refuses an undeclared unit. That combination is the only one that still works when a file arrives from a partner with no accompanying context.
+
+### What belongs in the partition key?
+
+Only fields that are deterministic from the inputs and are used in nearly every query — typically period and a spatial tile or region. Adding a field that changes between runs, such as a run identifier, breaks idempotent overwrite because a replay writes to a new path instead of replacing the old one. Adding a high-cardinality field creates small-file problems that dominate read cost. Partitioning is a query-shape decision that is expensive to change later, so it is worth modelling before the first large write.
+
+### Should geometry live in the same file as the attributes?
+
+Yes, in a GeoParquet-conformant layout, unless the geometry is very large relative to the attributes. Splitting geometry into a separate file introduces a join on every read and, more importantly, an opportunity for the two to drift apart — a boundary revised in one file and not the other is a defect no schema check will catch. Where geometry genuinely must be separate, key it on a content digest rather than an identifier so a mismatch is detectable.
+
+### How do I evolve the schema without breaking historical reads?
+
+Add rather than change, version the schema itself, and keep readers that understand both versions during any transition. Adding an optional column is free; adding a required column costs a backfill; widening a type costs a coordinated deployment. What is never acceptable is redefining an existing column's meaning under a stable name, because it produces no error anywhere and silently invalidates every historical comparison a verifier might reconstruct.
 
 ## Conclusion
 

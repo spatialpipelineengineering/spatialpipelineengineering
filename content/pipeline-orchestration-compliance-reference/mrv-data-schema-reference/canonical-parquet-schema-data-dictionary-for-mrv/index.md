@@ -157,6 +157,53 @@ The table below is the authoritative definition of the canonical `mrv_emissions`
 
 Two conventions in this table are load-bearing. Timestamps are always microsecond-precision UTC-tagged — a naive local timestamp is a rejection, because reporting-period boundaries decide which credits fall in which vintage. And the `emission_factor` sign convention (negative for removals, positive for emissions) means `co2e_tonnes` can be summed directly across a project without branching on sequestration versus emission.
 
+<svg viewBox="0 -4 900 228" role="img" aria-labelledby="col-t col-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="col-t">Which columns are added by which stage, and which may never be overwritten</title>
+  <desc id="col-d">A record accumulating columns as it moves through four stages. Ingestion writes the activity identifier, value, unit, period, geometry, coordinate reference system, source identifier and source checksum. Harmonisation adds the analysis coordinate reference system and the area in hectares. Factor application adds the factor identifier, factor version and carbon dioxide equivalent tonnes. Aggregation adds the consolidation rule and reporting entity. A rule is marked across the whole record: a stage may add columns and may never modify a column an earlier stage wrote, because doing so destroys the ability to re-derive the later value from the earlier one.</desc>
+  <defs>
+    <marker id="col-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+    </marker>
+  </defs>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">A record only ever grows</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Each stage appends its columns. None may modify what an earlier stage wrote.</text>
+    <rect x="12" y="52" width="212" height="122" rx="9" fill="currentColor" opacity="0.1"/>
+    <rect x="12" y="52" width="212" height="122" rx="9" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <text x="28" y="74" fill="currentColor" font-size="10" font-weight="700">Ingestion writes</text>
+    <text x="28" y="94" fill="currentColor" font-size="9" opacity="0.85">activity_id · activity_value</text>
+    <text x="28" y="110" fill="currentColor" font-size="9" opacity="0.85">unit · period_start/end</text>
+    <text x="28" y="126" fill="currentColor" font-size="9" opacity="0.85">geometry · crs</text>
+    <text x="28" y="142" fill="currentColor" font-size="9" opacity="0.85">source_id · source_checksum</text>
+    <text x="28" y="164" fill="currentColor" font-size="9" opacity="0.7">the only stage that faces raw data</text>
+    <rect x="236" y="52" width="196" height="122" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="236" y="52" width="196" height="122" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="252" y="74" fill="currentColor" font-size="10" font-weight="700">Harmonisation adds</text>
+    <text x="252" y="94" fill="currentColor" font-size="9" opacity="0.85">analysis_crs</text>
+    <text x="252" y="110" fill="currentColor" font-size="9" opacity="0.85">area_ha</text>
+    <text x="252" y="132" fill="currentColor" font-size="9" opacity="0.7">computed once, in the</text>
+    <text x="252" y="148" fill="currentColor" font-size="9" opacity="0.7">equal-area projection</text>
+    <rect x="444" y="52" width="196" height="122" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="444" y="52" width="196" height="122" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="460" y="74" fill="currentColor" font-size="10" font-weight="700">Factor application adds</text>
+    <text x="460" y="94" fill="currentColor" font-size="9" opacity="0.85">factor_id</text>
+    <text x="460" y="110" fill="currentColor" font-size="9" opacity="0.85">factor_version</text>
+    <text x="460" y="126" fill="currentColor" font-size="9" opacity="0.85">co2e_tonnes</text>
+    <text x="460" y="148" fill="currentColor" font-size="9" opacity="0.7">version pinned, never “latest”</text>
+    <rect x="652" y="52" width="236" height="122" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="652" y="52" width="236" height="122" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="668" y="74" fill="currentColor" font-size="10" font-weight="700">Aggregation adds</text>
+    <text x="668" y="94" fill="currentColor" font-size="9" opacity="0.85">consolidation_rule</text>
+    <text x="668" y="110" fill="currentColor" font-size="9" opacity="0.85">reporting_entity</text>
+    <text x="668" y="132" fill="currentColor" font-size="9" opacity="0.7">so one dataset serves every</text>
+    <text x="668" y="148" fill="currentColor" font-size="9" opacity="0.7">entity with a claim on it</text>
+    <text x="12" y="206" fill="#f3a712" font-size="9.5" font-weight="700">Overwriting an earlier column destroys the ability to re-derive the later value from it — which is the whole point of carrying both.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1.4" fill="none" marker-end="url(#col-arrow)">
+    <line x1="224" y1="112" x2="234" y2="112"/><line x1="432" y1="112" x2="442" y2="112"/><line x1="640" y1="112" x2="650" y2="112"/>
+  </g>
+</svg>
+
 ## Partitioning, Metadata & Storage Conventions
 
 Physical layout is part of the schema. The dataset is partitioned Hive-style on three keys chosen to match the dominant query patterns — a verifier pulls one project's one reporting year under one factor version — so predicate pushdown prunes whole directories before a single row group is read. File-level GeoParquet metadata travels in each file's footer so any Parquet reader can recover the geometry column and CRS without an external sidecar.
@@ -325,6 +372,58 @@ The schema sits at the join between transformation and submission, enforced on w
 6. **Submit.** Hand the partitioned dataset to registry integration, where `record_id` and `lineage_hash` become the queryable spine of the audit trail.
 
 Enforced this way, the canonical schema stops being a document that drifts from reality and becomes the contract the pipeline cannot violate silently. Every figure that reaches a registry ships with its geometry, its factor version, its uncertainty, and a hash that reconstructs how it was produced — which is precisely what turns a Parquet file into admissible carbon accounting evidence.
+
+<svg viewBox="0 -4 880 226" role="img" aria-labelledby="part-t part-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="part-t">Partition granularity against file count and query cost</title>
+  <desc id="part-d">Three partition layouts for the same dataset of 40 million rows. Partitioning by period alone yields 24 files averaging 1.6 gigabytes, which is efficient to scan whole and expensive for a single-tile query. Partitioning by period and tile yields 28 800 files averaging 1.4 megabytes, which is efficient for tile queries and slow to list. Partitioning by period and region, with tile as a sort key inside each file, yields 480 files averaging 83 megabytes, which reads a single tile efficiently through row-group statistics while keeping listing cheap. The third is marked as the usual answer.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Sort inside the file instead of partitioning deeper</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Same 40 M rows, three layouts.</text>
+    <rect x="12" y="52" width="280" height="150" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="12" y="52" width="280" height="150" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="28" y="76" fill="currentColor" font-size="10.5" font-weight="700">period</text>
+    <text x="28" y="102" fill="currentColor" font-size="13" font-weight="700">24 files · 1.6 GB each</text>
+    <text x="28" y="128" fill="currentColor" font-size="9.5" opacity="0.85">full scan: fast</text>
+    <text x="28" y="146" fill="#f3a712" font-size="9.5" font-weight="700">single tile: reads everything</text>
+    <text x="28" y="176" fill="currentColor" font-size="9" opacity="0.72">good for annual roll-ups only</text>
+    <rect x="300" y="52" width="280" height="150" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="300" y="52" width="280" height="150" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="316" y="76" fill="currentColor" font-size="10.5" font-weight="700">period / tile</text>
+    <text x="316" y="102" fill="currentColor" font-size="13" font-weight="700">28 800 files · 1.4 MB each</text>
+    <text x="316" y="128" fill="currentColor" font-size="9.5" opacity="0.85">single tile: fast</text>
+    <text x="316" y="146" fill="#f3a712" font-size="9.5" font-weight="700">listing dominates every query</text>
+    <text x="316" y="176" fill="currentColor" font-size="9" opacity="0.72">the classic small-file trap</text>
+    <rect x="588" y="52" width="280" height="150" rx="9" fill="currentColor" opacity="0.13"/>
+    <rect x="588" y="52" width="280" height="150" rx="9" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <text x="604" y="76" fill="currentColor" font-size="10.5" font-weight="700">period / region, tile sorted</text>
+    <text x="604" y="102" fill="currentColor" font-size="13" font-weight="700">480 files · 83 MB each</text>
+    <text x="604" y="128" fill="currentColor" font-size="9.5" opacity="0.85">single tile: row-group skipping</text>
+    <text x="604" y="146" fill="currentColor" font-size="9.5" font-weight="700">listing stays cheap</text>
+    <text x="604" y="176" fill="currentColor" font-size="9" opacity="0.78">the usual answer</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### Why must the derived tonnage and the raw activity value both be retained?
+
+Because the second is the observation and the first is a derivation from it. Keeping both, together with `factor_id` and `factor_version`, lets a verifier re-derive the tonnage independently and lets you recompute the whole history when a factor set is revised. Storing only the derived tonnage means a factor revision requires re-running the entire upstream pipeline, and it removes the auditor's ability to check the multiplication at all.
+
+### What goes in the Parquet footer versus a column?
+
+Anything that is constant for the file goes in the footer — the schema version, the analysis CRS, the factor-set version, the code and container versions, the producing run identifier. Anything that varies per row goes in a column. The footer is where the file becomes self-describing, which is what makes it survive being copied out of your infrastructure into a partner's, and it is the natural home for the provenance subset of the observability signals.
+
+### How large should a Parquet file be?
+
+Large enough that listing and open costs are amortised, small enough that a partition can be rewritten cheaply — in practice tens to low hundreds of megabytes. Reaching that with a tile-partitioned carbon dataset usually means partitioning by period and region while sorting by tile within each file, so row-group statistics let a reader skip to the tile without a directory listing per tile.
+
+### Should nulls be allowed in the canonical schema?
+
+Sparingly and deliberately. A nullable column is a claim that absence is meaningful and distinct from zero, which is true for a measurement that was not taken and false for a quantity that was measured as zero. Every nullable column should have a documented meaning for its null, and columns where absence is not meaningful should be non-nullable so a missing value fails at write rather than propagating as a silent zero downstream.
+
+### How does this schema relate to GeoParquet?
+
+It is a GeoParquet dataset with additional required columns and footer metadata. Conforming to GeoParquet means standard tools can read the geometry and its CRS without bespoke handling, which matters when a partner or verifier opens the file. The MRV-specific additions — factor versioning, consolidation rule, source checksum, provenance footer — sit alongside the GeoParquet metadata rather than replacing it.
 
 ## Related guides
 

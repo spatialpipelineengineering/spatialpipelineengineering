@@ -14,7 +14,7 @@ Cloud-shadow flagging is the noisiest step in any optical masking chain, and it 
 
 The Scene Classification Layer (SCL) shipped with Sentinel-2 Level-2A flags class 3 as `CLOUD_SHADOWS`, but it derives that flag from a spectral darkness test that has no notion of where a shadow can physically fall. Any dark surface — open water, a recent burn scar, terrain in self-shadow on a north-facing slope at low sun elevation, or dark tilled soil after rain — reads as shadow-dark and gets masked. Over-masking is not a cosmetic problem: it thins the observation stack that feeds [monthly temporal aggregation of NDVI](https://www.spatialpipelineengineering.org/satellite-imagery-processing-for-emissions-tracking/temporal-aggregation-for-land-use-change/monthly-temporal-aggregation-of-ndvi-for-land-cover-change/), biases composites toward whatever survives the cull, and can starve a tile of the clear observations a verifier expects. The fix is to stop treating "dark" as "shadow" and instead confirm that each candidate pixel is geometrically consistent with a cast shadow from a detected cloud.
 
-<svg viewBox="0 0 1000 250" role="img" aria-labelledby="csfp-t csfp-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+<svg viewBox="-6 70 1012 180" role="img" aria-labelledby="csfp-t csfp-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
   <title id="csfp-t">Cloud-shadow confirmation flow that suppresses false positives</title>
   <desc id="csfp-d">Candidate shadow pixels from the SCL darkness test enter a chain of confirmation gates. First the cloud mask is projected along the solar azimuth by a height-scaled distance to produce a predicted shadow footprint. Candidate pixels are intersected with that footprint and with a darkness and near-infrared / short-wave-infrared spectral test. A terrain-shadow exclusion step removes hillshade self-shadow using a digital elevation model and the solar geometry. Pixels that survive every gate become the confirmed cloud-shadow mask, shown in amber as the validated output; pixels that fail any gate are released back to clear-sky.</desc>
   <defs>
@@ -280,6 +280,55 @@ def refine_cloud_shadow(
 
 The geometric intersection is what recovers the observation density that a spectral-only mask destroys. Water outside any projected footprint is released; a burn scar with no cloud overhead is released; north-facing terrain shadow is removed explicitly. Only pixels that are dark, geometrically consistent with a real cloud, and not self-shadowed terrain remain flagged.
 
+<svg viewBox="0 -4 900 236" role="img" aria-labelledby="sh-t sh-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="sh-t">Dark pixels that are not shadow, and what separates each from a true shadow</title>
+  <desc id="sh-d">Four sources of dark pixels compared against true cloud shadow. Open water is dark in the near-infrared like shadow, but is persistent across dates and has no cloud upwind in the solar geometry. Burn scars are dark and persistent, and have a distinctive high burn-ratio signature. Terrain shading is dark and predictable from a digital elevation model and the solar angle, recurring at the same time of year. Dark soils and basalt are dark and persistent with a flat spectral shape. True cloud shadow is dark, transient, and geometrically consistent with a cloud object upwind. A panel notes that persistence plus geometric consistency separates true shadow from all four, and that a spectral darkness test alone cannot.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Darkness alone identifies nothing</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Five things are dark in the near-infrared. Only one of them is cloud shadow.</text>
+    <rect x="12" y="52" width="170" height="152" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="12" y="52" width="170" height="152" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="26" y="76" fill="currentColor" font-size="10" font-weight="700">Open water</text>
+    <text x="26" y="100" fill="currentColor" font-size="9" opacity="0.85">dark in NIR ✓</text>
+    <text x="26" y="118" fill="currentColor" font-size="9" opacity="0.85">persistent ✗</text>
+    <text x="26" y="140" fill="currentColor" font-size="9" font-weight="700">no cloud upwind</text>
+    <text x="26" y="166" fill="currentColor" font-size="9" opacity="0.75">use a water mask;</text>
+    <text x="26" y="182" fill="currentColor" font-size="9" opacity="0.75">the biggest single cause</text>
+    <rect x="194" y="52" width="170" height="152" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="194" y="52" width="170" height="152" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="208" y="76" fill="currentColor" font-size="10" font-weight="700">Burn scar</text>
+    <text x="208" y="100" fill="currentColor" font-size="9" opacity="0.85">dark ✓</text>
+    <text x="208" y="118" fill="currentColor" font-size="9" opacity="0.85">persistent ✗</text>
+    <text x="208" y="140" fill="currentColor" font-size="9" font-weight="700">high burn ratio</text>
+    <text x="208" y="166" fill="currentColor" font-size="9" opacity="0.75">and it is exactly the</text>
+    <text x="208" y="182" fill="currentColor" font-size="9" opacity="0.75">change you want to keep</text>
+    <rect x="376" y="52" width="170" height="152" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="376" y="52" width="170" height="152" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="390" y="76" fill="currentColor" font-size="10" font-weight="700">Terrain shading</text>
+    <text x="390" y="100" fill="currentColor" font-size="9" opacity="0.85">dark ✓</text>
+    <text x="390" y="118" fill="currentColor" font-size="9" opacity="0.85">seasonally recurrent</text>
+    <text x="390" y="140" fill="currentColor" font-size="9" font-weight="700">predictable from a DEM</text>
+    <text x="390" y="166" fill="currentColor" font-size="9" opacity="0.75">model it and subtract;</text>
+    <text x="390" y="182" fill="currentColor" font-size="9" opacity="0.75">do not mask it blindly</text>
+    <rect x="558" y="52" width="170" height="152" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="558" y="52" width="170" height="152" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="572" y="76" fill="currentColor" font-size="10" font-weight="700">Dark soil / basalt</text>
+    <text x="572" y="100" fill="currentColor" font-size="9" opacity="0.85">dark ✓</text>
+    <text x="572" y="118" fill="currentColor" font-size="9" opacity="0.85">persistent ✗</text>
+    <text x="572" y="140" fill="currentColor" font-size="9" font-weight="700">flat spectral shape</text>
+    <text x="572" y="166" fill="currentColor" font-size="9" opacity="0.75">a static exclusion layer</text>
+    <text x="572" y="182" fill="currentColor" font-size="9" opacity="0.75">solves it permanently</text>
+    <rect x="740" y="52" width="148" height="152" rx="9" fill="currentColor" opacity="0.13"/>
+    <rect x="740" y="52" width="148" height="152" rx="9" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <text x="754" y="76" fill="currentColor" font-size="10" font-weight="700">True cloud shadow</text>
+    <text x="754" y="100" fill="currentColor" font-size="9" opacity="0.85">dark ✓</text>
+    <text x="754" y="118" fill="currentColor" font-size="9" font-weight="700">transient ✓</text>
+    <text x="754" y="140" fill="currentColor" font-size="9" font-weight="700">cloud upwind ✓</text>
+    <text x="754" y="166" fill="#f3a712" font-size="9" font-weight="700">persistence + geometry</text>
+    <text x="754" y="182" fill="#f3a712" font-size="9" font-weight="700">is the only separator</text>
+  </g>
+</svg>
+
 ## Compliance Gating & Audit Trail Generation
 
 Every mask that reaches a composite carries the `provenance` dictionary above, and those attributes travel with the raster into [MRV data lineage and provenance tracking](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/mrv-data-lineage-provenance-tracking/). A verifier auditing a suppressed alert needs to reconstruct exactly why a pixel was or was not masked, and the solar geometry, projection heights, and terrain-exclusion count make that reconstruction deterministic. Three gates are load-bearing:
@@ -302,6 +351,57 @@ Deploy the refiner inside the STAC masking flow, following a fixed ingest → di
 6. **Submit.** Feed the validated mask into [monthly temporal aggregation of NDVI](https://www.spatialpipelineengineering.org/satellite-imagery-processing-for-emissions-tracking/temporal-aggregation-for-land-use-change/monthly-temporal-aggregation-of-ndvi-for-land-cover-change/) and the change models behind the [deforestation alert generation pipelines](https://www.spatialpipelineengineering.org/satellite-imagery-processing-for-emissions-tracking/deforestation-alert-generation-pipelines/), where the recovered observation density directly improves composite quality.
 
 By replacing "dark equals shadow" with a geometry-confirmed decision — project from solar angles, intersect with a NIR/SWIR darkness test, and subtract terrain self-shadow — the mask stops mistaking water, burn scars, and hillslopes for cloud shadow. The result is a shadow mask that preserves the observation density carbon composites depend on while remaining fully auditable under third-party verification.
+
+<svg viewBox="0 -4 880 214" role="img" aria-labelledby="geo2-t geo2-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="geo2-t">Projecting a shadow from a cloud object using the solar geometry</title>
+  <desc id="geo2-d">A side view showing a cloud at an unknown height above ground, with sunlight arriving at a solar zenith angle. The shadow falls along the solar azimuth at a horizontal offset equal to the cloud height multiplied by the tangent of the zenith angle. Because the height is unknown, a range of plausible heights from 500 to 8 000 metres sweeps a corridor on the ground rather than a single spot. Only pixels that are both inside the corridor and spectrally dark are flagged as shadow. A panel gives the numbers: at a 45 degree zenith angle, that height range places the shadow between 500 and 8 000 metres from the cloud, which is 50 to 800 Sentinel-2 pixels.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">The height is unknown, so project a corridor</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Then require a pixel to be both inside it and dark.</text>
+  </g>
+  <line x1="60" y1="164" x2="620" y2="164" stroke="currentColor" stroke-width="1.6"/>
+  <text x="60" y="182" font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.75">ground</text>
+  <ellipse cx="180" cy="72" rx="52" ry="18" fill="currentColor" opacity="0.22"/>
+  <text x="180" y="76" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">cloud</text>
+  <line x1="180" y1="90" x2="180" y2="164" stroke="currentColor" stroke-width="1.2" stroke-dasharray="4,3" opacity="0.6"/>
+  <text x="188" y="128" font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.75">h = 0.5–8 km</text>
+  <line x1="112" y1="30" x2="196" y2="86" stroke="#f3a712" stroke-width="2"/>
+  <text x="104" y="26" font-family="system-ui, sans-serif" font-size="9" font-weight="700" fill="#f3a712">sunlight · θ = 45°</text>
+  <path d="M232 164 L560 164" stroke="#f3a712" stroke-width="10" opacity="0.28" stroke-linecap="round"/>
+  <text x="396" y="152" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">candidate shadow corridor</text>
+  <text x="396" y="196" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.78">offset = h · tan θ · along the solar azimuth</text>
+  <g font-family="system-ui, sans-serif">
+    <rect x="648" y="52" width="220" height="104" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="648" y="52" width="220" height="104" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="664" y="76" fill="currentColor" font-size="9.5" font-weight="700">At θ = 45°</text>
+    <text x="664" y="100" fill="currentColor" font-size="9.5" opacity="0.85">the shadow sits 500 m to 8 km</text>
+    <text x="664" y="116" fill="currentColor" font-size="9.5" opacity="0.85">from the cloud — 50 to 800</text>
+    <text x="664" y="132" fill="currentColor" font-size="9.5" opacity="0.85">Sentinel-2 pixels.</text>
+    <text x="664" y="150" fill="#f3a712" font-size="9" font-weight="700">Over-project, then intersect.</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### What is the single biggest cause of shadow over-masking?
+
+Water. Open water is dark in the near-infrared exactly as shadow is, and any purely spectral shadow test flags every lake, river, and flooded field in the scene. Adding a persistent water mask — from a global water dataset or from a multi-date occurrence layer — removes the largest share of false shadow flags in one change. Flooded vegetation is the harder residual case, and it usually needs a seasonal water-occurrence layer rather than a static one.
+
+### How does the geometric shadow projection work in practice?
+
+For each cloud object, project a ray from the cloud along the solar azimuth at the solar zenith angle, over a range of plausible cloud heights, and mark the swept area as candidate shadow. Intersect that candidate area with the spectral darkness test: a pixel must be both dark and geometrically plausible to be flagged. The cloud-height range is the tuning parameter, and it is better to over-project geometrically and rely on the spectral intersection than to guess a single height.
+
+### How much valid data does over-masking typically cost?
+
+Over a landscape with significant water or dark soils, a naive spectral shadow test commonly discards 8 to 20 per cent more pixels than a geometry-constrained test, and the loss is spatially concentrated rather than spread evenly. That concentration is what makes it damaging: the areas losing observations are the same areas every date, so their time series thin out systematically and their estimates carry wider intervals nobody accounted for.
+
+### Should terrain shadow be masked or corrected?
+
+Corrected where possible, masked only where correction fails. Terrain shading is deterministic given a digital elevation model and the solar geometry, so it can be modelled and removed with a topographic correction, preserving the observation. Masking it instead discards data from precisely the steep terrain where forest carbon is often most at risk, and it does so at the same time of year every year — a seasonal bias that looks like phenology in the resulting series.
+
+### How do I measure whether my mask is over-masking?
+
+Compare the masked fraction against an independent estimate of cloud cover for the same scene — the provider's scene-level cloud percentage is adequate — and trend the difference. A masked fraction consistently well above scene cloud cover is over-masking. A second, sharper test is to compute the composite from the current mask and from a deliberately permissive one over a stable reference area: a systematic difference means the mask is selecting observations rather than filtering them.
 
 ## Related guides
 

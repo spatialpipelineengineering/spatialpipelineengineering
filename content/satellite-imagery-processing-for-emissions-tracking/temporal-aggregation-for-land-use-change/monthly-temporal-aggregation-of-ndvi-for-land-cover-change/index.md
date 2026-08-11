@@ -14,7 +14,7 @@ In automated MRV (Measurement, Reporting, and Verification) architectures, raw d
 
 Atmospheric interference, sensor geometry drift, and acquisition gaps introduce stochastic noise that obscures structural vegetation transitions. Monthly temporal aggregation of NDVI for land cover change resolves this by transforming heterogeneous pixel-level observations into deterministic, compliance-ready composites. The engineering objective is not statistical smoothing; it is the construction of an auditable temporal baseline that survives ESG scrutiny, aligns with GHG Protocol activity data requirements, and scales across multi-sensor tile streams as activity data entering the wider [MRV architecture and carbon accounting fundamentals](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/) stack.
 
-<svg viewBox="0 0 1000 262" role="img" aria-labelledby="ndvi-agg-t ndvi-agg-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+<svg viewBox="-4 40 996 218" role="img" aria-labelledby="ndvi-agg-t ndvi-agg-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
   <title id="ndvi-agg-t">Monthly NDVI aggregation flow with observation-density branch</title>
   <desc id="ndvi-agg-d">A daily NDVI stack from Sentinel-2 and Landsat passes through a QA clear-sky filter keyed on SCL or QA_PIXEL, then a pinned monthly resample using a median or 75th-percentile reducer. A decision gate asks whether each cell has at least three clear observations per month: cells that pass become a deterministic monthly composite; cells that fail route to a 90-day rolling median fallback with the interpolation explicitly flagged. Both paths converge into a single audit manifest recording QA pass rate, datum and lineage.</desc>
   <defs>
@@ -181,6 +181,43 @@ def preflight_ndvi_stack(
 
 A tile that reports `sufficient=False` is not discarded; the flag routes thin months to the rolling-fallback path in the transformation step and records why, so the gap is visible to a verifier rather than silently interpolated.
 
+<svg viewBox="0 -4 880 216" role="img" aria-labelledby="nobs-t nobs-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="nobs-t">Observation count per monthly composite, and what it does to the interval</title>
+  <desc id="nobs-d">A chart of the 95 percent confidence half-width on a monthly mean vegetation index against the number of clear observations contributing to it. With one observation the half-width is 0.11, with three it is 0.06, with six 0.04, with twelve 0.03. A shaded band marks the region below three observations where the interval exceeds the seasonal signal being measured. A panel notes that a composite carries its observation count as a band so that downstream aggregation can weight by it, and that treating a one-observation cell and a twelve-observation cell as equivalent hides a fourfold difference in precision.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">A composite is not one number, it is a number and a count</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">95% half-width on a monthly mean index, by contributing observations.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1" opacity="0.22">
+    <line x1="80" y1="60" x2="540" y2="60"/><line x1="80" y1="102" x2="540" y2="102"/><line x1="80" y1="144" x2="540" y2="144"/>
+  </g>
+  <rect x="80" y="50" width="122" height="124" fill="#f3a712" opacity="0.12"/>
+  <text x="141" y="66" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" font-weight="700" fill="#f3a712">interval &gt; signal</text>
+  <g stroke="currentColor" stroke-width="1.3">
+    <line x1="80" y1="50" x2="80" y2="174"/>
+    <line x1="80" y1="174" x2="540" y2="174"/>
+  </g>
+  <g font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.72">
+    <text x="72" y="64" text-anchor="end">0.12</text>
+    <text x="72" y="106" text-anchor="end">0.08</text>
+    <text x="72" y="148" text-anchor="end">0.04</text>
+    <text x="80" y="192" text-anchor="middle">1</text>
+    <text x="202" y="192" text-anchor="middle">3</text>
+    <text x="325" y="192" text-anchor="middle">6</text>
+    <text x="540" y="192" text-anchor="middle">12</text>
+    <text x="310" y="208" text-anchor="middle" font-weight="600">clear observations in the month</text>
+  </g>
+  <polyline points="80,68 141,110 202,131 264,142 325,150 386,156 448,160 540,163" fill="none" stroke="currentColor" stroke-width="2.8"/>
+  <g font-family="system-ui, sans-serif">
+    <rect x="576" y="66" width="292" height="86" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="576" y="66" width="292" height="86" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="592" y="90" fill="currentColor" font-size="9.5" font-weight="700">Carry n_obs as a band</text>
+    <text x="592" y="112" fill="currentColor" font-size="9.5" opacity="0.85">so downstream aggregation can weight by it.</text>
+    <text x="592" y="132" fill="currentColor" font-size="9.5" opacity="0.85">A one-observation cell and a twelve-observation</text>
+    <text x="592" y="146" fill="currentColor" font-size="9.5" opacity="0.85">cell differ fourfold in precision.</text>
+  </g>
+</svg>
+
 ## Deterministic Transformation Logic
 
 The aggregation engine operates on chunked Cloud-Optimized GeoTIFFs using `xarray` and `dask.array`, enabling out-of-core processing across continental extents. While `NDVI_max` composites are standard for phenological tracking, land cover change detection for carbon accounting requires `NDVI_median` or the 75th percentile to suppress transient soil-moisture spikes and BRDF-induced edge effects. Multi-sensor harmonization is a prerequisite: Sentinel-2 MSI and Landsat 8/9 OLI must be normalized to a common reflectance scale using sensor-specific gain/offset tables before stacking, or an artificial NDVI step-change appears at every sensor handoff.
@@ -309,6 +346,72 @@ Deploy the routine within an async tile-processing framework, following a fixed 
 6. **Submit.** Feed the composites into a CUSUM or Bayesian change-detection module — the change models behind the [deforestation alert generation pipelines](https://www.spatialpipelineengineering.org/satellite-imagery-processing-for-emissions-tracking/deforestation-alert-generation-pipelines/) — and forward the lineage to registry submission. The aggregated trajectories also feed parcel-level estimates in the [spatial modeling and carbon stock validation](https://www.spatialpipelineengineering.org/spatial-modeling-carbon-stock-validation/) layer.
 
 Use `dask.distributed` to schedule chunked COG reads across distributed workers, routing STAC item lists through a priority queue that balances sensor availability and cloud-cover forecasts. By enforcing strict QA filtering, statistical robustness, and embedded audit trails, monthly temporal aggregation of NDVI transforms noisy optical observations into verifiable carbon accounting inputs that survive regulatory scrutiny and provide the deterministic foundation required for automated MRV compliance.
+
+<svg viewBox="0 -4 800 210" role="img" aria-labelledby="idx-t idx-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="idx-t">Where NDVI saturates, and which index to use instead</title>
+  <desc id="idx-d">A curve of index value against increasing leaf area index from 0 to 8. NDVI rises steeply to about 0.85 by a leaf area index of 3 and is then almost flat, so it cannot distinguish moderately dense canopy from very dense canopy — exactly the range where forest carbon varies most. EVI continues rising to a leaf area index of about 6 before flattening. A near-infrared reflectance of vegetation index continues further still. A shaded band marks the saturation region above a leaf area index of 3. A panel notes that NDVI remains excellent for detecting the presence or absence of vegetation and poor for grading its density, which is why change detection and biomass estimation should not share an index by default.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">NDVI saturates exactly where forest carbon varies</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Index response against leaf area index.</text>
+  </g>
+  <rect x="242" y="46" width="318" height="126" fill="#f3a712" opacity="0.1"/>
+  <text x="401" y="62" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" font-weight="700" fill="#f3a712">NDVI saturation region</text>
+  <g stroke="currentColor" stroke-width="1.3">
+    <line x1="80" y1="46" x2="80" y2="172"/>
+    <line x1="80" y1="172" x2="560" y2="172"/>
+  </g>
+  <g font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.72">
+    <text x="72" y="76" text-anchor="end">high</text>
+    <text x="72" y="168" text-anchor="end">low</text>
+    <text x="80" y="190" text-anchor="middle">0</text>
+    <text x="242" y="190" text-anchor="middle">3</text>
+    <text x="401" y="190" text-anchor="middle">5.5</text>
+    <text x="560" y="190" text-anchor="middle">8</text>
+    <text x="320" y="206" text-anchor="middle" font-weight="600">leaf area index</text>
+  </g>
+  <polyline points="80,166 134,118 188,90 242,78 296,74 350,72 404,71 458,70 560,70" fill="none" stroke="#f3a712" stroke-width="2.8"/>
+  <polyline points="80,168 134,140 188,118 242,102 296,90 350,82 404,78 458,76 560,74" fill="none" stroke="currentColor" stroke-width="2.6"/>
+  <polyline points="80,170 134,152 188,136 242,120 296,108 350,96 404,88 458,82 560,76" fill="none" stroke="currentColor" stroke-width="2.4" stroke-dasharray="7,4"/>
+  <g font-family="system-ui, sans-serif" font-size="9.5" font-weight="600">
+    <text x="572" y="74" fill="#f3a712">NDVI</text>
+    <text x="572" y="90" fill="currentColor">EVI</text>
+    <text x="572" y="106" fill="currentColor" opacity="0.85">NIRv</text>
+    <text x="572" y="130" font-weight="400" font-size="9" fill="currentColor" opacity="0.82">NDVI: presence or absence, yes.</text>
+    <text x="572" y="144" font-weight="400" font-size="9" fill="currentColor" opacity="0.82">Grading density, no.</text>
+    <text x="572" y="162" font-weight="700" font-size="9" fill="currentColor">Detection and biomass should</text>
+    <text x="572" y="176" font-weight="700" font-size="9" fill="currentColor">not share an index.</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### Why does the observation count matter as much as the composite value?
+
+Because it is the composite's precision, and precision varies enormously across a map. A monthly mean from one observation carries roughly four times the interval of one from twelve, and treating the two as equivalent in a downstream aggregation understates uncertainty exactly where the data was thinnest. Carry the count as a band, weight by it when aggregating, and report the distribution — a period whose median cell had two observations supports a much weaker claim than one whose median cell had ten.
+
+### Should NDVI be the default index for land-use change?
+
+For detecting presence and absence of vegetation, yes; for grading density, no. NDVI saturates above a leaf area index of roughly three, which is precisely the range where forest carbon varies most, so it registers clearing sharply and degradation barely at all. Use it for change detection and use EVI, NIRv, or a structural signal for anything that needs to distinguish dense canopy from denser canopy.
+
+### How should monthly composites handle a month with no clear observations?
+
+Mark the cell unobserved and let downstream decide. Interpolating across the gap is often necessary for a seasonal model and must be flagged as interpolated; substituting the previous month silently is not acceptable because it creates artificial persistence that suppresses real change. The fraction of cells requiring interpolation in a period is a headline quality statistic and belongs in the period's metadata.
+
+### Does the compositing window need to be exactly a calendar month?
+
+Not necessarily, but it must be consistent and documented. Calendar months are convenient for reporting alignment and awkward for phenology, since a growing season rarely respects month boundaries. Some pipelines use fixed 16-day or 32-day windows for analysis and aggregate to calendar months only for reporting, which keeps phenological comparability and reporting alignment separate rather than compromising both.
+
+### How do I compare composites across sensors?
+
+Harmonise before compositing, never after. Sentinel-2 and Landsat differ in band centres, widths, and radiometric calibration, so their indices differ systematically over identical ground. Apply published cross-sensor transformation coefficients to bring one onto the other's scale, validate the harmonisation over a stable reference area, and record which sensor contributed to each cell — a composite that silently mixes sensors carries a step change at every point where the mix shifts.
+
+### Should the composite store the contributing scene identifiers?
+
+Yes, as an array column or a sidecar table keyed on the cell. Knowing which scenes produced a composite is what makes it reproducible and what lets a suspicious cell be traced back to a specific acquisition — usually the one whose mask leaked. The storage cost is small relative to the imagery, and the alternative is re-running the scene query later, which returns a different set once the archive has been reprocessed.
+
+### Should composites be recomputed when the archive is reprocessed?
+
+Only deliberately, and as a restatement. A provider reprocessing its archive changes the inputs to every historical composite, so re-running produces different numbers for periods already reported. Keep the original composites and their pinned scene lists, decide explicitly whether to adopt the reprocessed archive, and if you do, recompute the whole affected history at once so the series stays internally consistent rather than changing at an arbitrary point.
 
 ## Related guides
 

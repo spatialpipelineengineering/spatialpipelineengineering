@@ -271,6 +271,39 @@ def correct_mosaic_extent(
 
 The `shift` strategy is the default for raster compositing: once longitudes live in a contiguous 0–360° frame, the mosaic driver sees one narrow extent and allocates a sensibly sized output. The `split` strategy is reserved for vector products that must round-trip through `EPSG:4326` — a GeoJSON or GeoParquet footprint that a verifier will open in a standards-compliant reader, which under RFC 7946 requires anti-meridian-crossing polygons to be split into a `MultiPolygon` rather than stored with wrapped coordinates.
 
+<svg viewBox="0 -4 880 232" role="img" aria-labelledby="am-t am-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="am-t">What an unsplit anti-meridian polygon does to a bounding box and an area</title>
+  <desc id="am-d">A polygon spanning the 180 degree meridian, with vertices at 178 degrees east and 179 degrees west. Interpreted naively, its longitude range runs from minus 179 to plus 178, giving a bounding box 357 degrees wide that spans almost the entire globe instead of the true 3 degrees. The computed area is roughly 119 times the true area, and any intersection test against it matches nearly every feature on Earth. A panel gives the three fixes: split the geometry at 180, shift to a 0 to 360 longitude convention for the computation, or work in a projected coordinate reference system centred on the region, and notes that the bounding-box width test catches the problem in one line.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">A 3° polygon that reports a 357° bounding box</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Vertices at 178°E and 179°W, interpreted as a range from −179 to +178.</text>
+  </g>
+  <g>
+    <rect x="60" y="60" width="600" height="72" rx="6" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.5"/>
+    <line x1="360" y1="52" x2="360" y2="140" stroke="#f3a712" stroke-width="2" stroke-dasharray="5,4"/>
+    <text x="360" y="48" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" font-weight="700" fill="#f3a712">180°</text>
+    <rect x="330" y="78" width="30" height="36" fill="currentColor" opacity="0.3"/>
+    <rect x="360" y="78" width="30" height="36" fill="currentColor" opacity="0.3"/>
+    <text x="360" y="156" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" font-weight="700" fill="currentColor">true extent: 3°</text>
+    <rect x="60" y="60" width="600" height="72" rx="6" fill="#f3a712" opacity="0.1"/>
+    <text x="150" y="102" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="#f3a712">computed bounding box: 357°</text>
+    <text x="72" y="152" font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.75">−179°</text>
+    <text x="648" y="152" text-anchor="end" font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.75">+178°</text>
+  </g>
+  <g font-family="system-ui, sans-serif">
+    <rect x="688" y="60" width="180" height="96" rx="9" fill="currentColor" opacity="0.1"/>
+    <rect x="688" y="60" width="180" height="96" rx="9" fill="none" stroke="currentColor" stroke-width="1.6"/>
+    <text x="704" y="84" fill="currentColor" font-size="9.5" font-weight="700">Consequences</text>
+    <text x="704" y="106" fill="currentColor" font-size="9" opacity="0.85">area ≈ 119× true</text>
+    <text x="704" y="122" fill="currentColor" font-size="9" opacity="0.85">intersects nearly everything</text>
+    <text x="704" y="144" fill="#f3a712" font-size="9" font-weight="700">and never raises an error</text>
+    <rect x="12" y="176" width="856" height="52" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="12" y="176" width="856" height="52" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="28" y="196" fill="currentColor" font-size="9.5" font-weight="700">Three fixes: split at 180 · shift to a 0–360 convention for the computation · work in a projected CRS centred on the region.</text>
+    <text x="28" y="216" fill="currentColor" font-size="9.5" opacity="0.85">One detector: assert that no feature's geographic bounding box is wider than 180°. It is a single line and it catches every case.</text>
+  </g>
+</svg>
+
 ## Compliance Gating & Audit Trail Generation
 
 The correction routine embeds a machine-readable manifest recording the strategy applied, the source and projected CRS, and the corrected extent width. That record is what turns a reprojection from an invisible driver default into an auditable decision. The gates it enforces are:
@@ -293,6 +326,60 @@ Deploy the correction within the tile-processing framework following a fixed ing
 6. **Submit.** Forward the composite into the temporal aggregation stage — the same monthly reducers described in [monthly temporal aggregation of NDVI for land cover change](https://www.spatialpipelineengineering.org/satellite-imagery-processing-for-emissions-tracking/temporal-aggregation-for-land-use-change/monthly-temporal-aggregation-of-ndvi-for-land-cover-change/) — and carry the lineage through to registry submission.
 
 By detecting the crossing on two independent signals, choosing the correction that matches the product, and gating the corrected extent before any merge, anti-meridian handling turns a class of silent, area-corrupting mosaic failures into a documented, reproducible step. The Fijian district that once reported a 359° bounding box now composites into a compact, area-honest mosaic whose every hectare an auditor can recompute — the deterministic foundation automated MRV compliance depends on.
+
+<svg viewBox="0 -4 880 208" role="img" aria-labelledby="cyc-t cyc-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="cyc-t">Three cyclic quantities that break naive arithmetic the same way</title>
+  <desc id="cyc-d">Three examples of the same class of bug. Longitude wraps at 180 degrees, so a mean of 179 and minus 179 gives zero instead of 180. Compass bearing wraps at 360 degrees, so a mean of 350 and 10 gives 180 instead of zero, which reverses a wind direction. Day of year wraps at 365, so a seasonal model fitted without a circular basis produces a discontinuity every January. A panel notes that all three produce plausible numbers, none raise an error, and all three are caught by asserting that a derived value is physically sensible rather than by inspecting the arithmetic.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">The same bug, three coordinates</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Cyclic quantities averaged as if they were linear.</text>
+    <rect x="12" y="52" width="280" height="112" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="12" y="52" width="280" height="112" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="28" y="76" fill="currentColor" font-size="10.5" font-weight="700">Longitude · wraps at 180°</text>
+    <text x="28" y="100" fill="currentColor" font-size="9.5" opacity="0.85">mean(179, −179)</text>
+    <text x="28" y="122" fill="#f3a712" font-size="10" font-weight="700">= 0°, should be 180°</text>
+    <text x="28" y="146" fill="currentColor" font-size="9" opacity="0.75">a centroid in the wrong ocean</text>
+    <rect x="300" y="52" width="280" height="112" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="300" y="52" width="280" height="112" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="316" y="76" fill="currentColor" font-size="10.5" font-weight="700">Bearing · wraps at 360°</text>
+    <text x="316" y="100" fill="currentColor" font-size="9.5" opacity="0.85">mean(350, 10)</text>
+    <text x="316" y="122" fill="#f3a712" font-size="10" font-weight="700">= 180°, should be 0°</text>
+    <text x="316" y="146" fill="currentColor" font-size="9" opacity="0.75">a wind direction reversed</text>
+    <rect x="588" y="52" width="280" height="112" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="588" y="52" width="280" height="112" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="604" y="76" fill="currentColor" font-size="10.5" font-weight="700">Day of year · wraps at 365</text>
+    <text x="604" y="100" fill="currentColor" font-size="9.5" opacity="0.85">a non-circular seasonal basis</text>
+    <text x="604" y="122" fill="#f3a712" font-size="10" font-weight="700">a step every January</text>
+    <text x="604" y="146" fill="currentColor" font-size="9" opacity="0.75">read as annual change</text>
+    <text x="12" y="192" fill="currentColor" font-size="9.5" opacity="0.85">All three produce plausible numbers and raise no error. Assert that the derived value is physically sensible; do not inspect the arithmetic.</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### How do I detect anti-meridian wrapping in one check?
+
+Assert that no feature's bounding box in geographic coordinates is wider than 180 degrees. A genuine feature spanning more than half the globe is essentially unheard of in carbon work, while a wrapped feature almost always reports a width near 360. The check is a single comparison, costs nothing, and belongs in the ingestion gate alongside the CRS assertion — it is the cheapest high-value spatial invariant available.
+
+### Should I split the geometry or shift the longitudes?
+
+Split for anything that will be stored or exchanged, shift for a local computation. A split geometry is valid in every tool and every format, which matters when a partner or verifier opens the file. A longitude shift to a 0–360 convention is simpler for an internal calculation but produces coordinates that other tools will misinterpret, so it must never leak into a stored artefact without being documented.
+
+### Does the problem exist in projected coordinate systems too?
+
+It disappears for a projection centred near the region, which is the cleanest fix when the area of interest is compact — a local equal-area projection centred on the Pacific has no discontinuity at 180. It reappears for global projections, whose own discontinuity simply sits somewhere else, usually at the projection's central meridian's antipode. The general rule is that every global projection has a seam, and geometry crossing it needs the same treatment.
+
+### What about rasters rather than vectors?
+
+The same problem in a different form: a mosaic spanning 180 built naively either produces a global-width grid mostly full of nodata or silently reorders the tiles. Build the mosaic in a projected CRS centred on the region, or mosaic the two sides separately and keep them as separate artefacts with a documented relationship. Reprojecting a wrapped mosaic afterwards does not fix it, because the damage happened when the extent was computed.
+
+### Where else does this class of bug appear?
+
+Anywhere a coordinate is cyclic. Longitude at 180 is the common case; the others are compass bearings wrapping at 360, which break naive averaging of wind or aspect direction, and day-of-year wrapping at 365, which breaks a seasonal model fitted without a circular basis. All three produce plausible numbers, none raise errors, and all three are caught by asserting that a derived range is physically sensible rather than by inspecting the arithmetic.
+
+### Does the problem affect tiling schemes and STAC queries too?
+
+Yes, and often before it affects the data. A bounding-box query spanning 180 degrees returns either nothing or everything depending on how the catalogue interprets it, so the failure appears as a mysteriously empty or absurdly large scene list rather than as bad geometry. Split the query at the anti-meridian, issue two requests, and merge the results — the same treatment the geometry needs, applied one stage earlier.
 
 ## Related guides
 

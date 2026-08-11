@@ -16,12 +16,34 @@
   --c-accent: #f3a712;
   --c-accent-700: #c9820a;
   --c-text: #16302a;
+  --c-prose: #233a33;
   --c-muted: #5a6b64;
   --c-border: #dce6e1;
   --c-code-bg: #f3f7f4;
   --c-code-border: #e0ebe5;
+  --c-code-text: #243b33;
   --c-inline-bg: #e7f1ec;
   --c-inline-text: #0d5a47;
+
+  /* Surfaces that carry brand fill under light text (table heads, primary
+     buttons, the skip link). Kept as their own tokens so the dark theme can
+     darken the fill instead of inheriting a light brand colour under #fff. */
+  --c-brand-fill-a: var(--c-primary-700);
+  --c-brand-fill-b: var(--c-primary);
+  --c-on-brand: #ffffff;
+  --c-header-bg: rgba(255, 255, 255, 0.85);
+  --c-float-bg: rgba(255, 255, 255, 0.92);
+
+  /* Diagram ink. Inline SVGs draw with currentColor, which follows the theme on
+     its own; these are the few accent hues that are baked as hex attributes.
+     Both themes remap them so labels stay above AA on their own background. */
+  --svg-amber: #8a5a06;
+  --svg-cyan: #0c6076;
+  --svg-teal: #0d5a47;
+  --svg-red: #a3271a;
+  --svg-amber-line: #c9820a;
+  --svg-cyan-line: #11839e;
+  --svg-teal-line: #0f6e63;
 
   /* Typography */
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
@@ -118,7 +140,7 @@ h6[id] {
   position: sticky;
   top: 0;
   z-index: 50;
-  background: rgba(255, 255, 255, 0.85);
+  background: var(--c-header-bg);
   backdrop-filter: saturate(160%) blur(10px);
   border-bottom: 1px solid var(--c-border);
 }
@@ -352,12 +374,12 @@ h6[id] {
   flex: none;
 }
 .btn--primary {
-  background: linear-gradient(120deg, var(--c-secondary), var(--c-primary));
-  color: #fff;
+  background: linear-gradient(120deg, var(--c-secondary-700), var(--c-brand-fill-b));
+  color: var(--c-on-brand);
   box-shadow: var(--shadow-md);
 }
 .btn--primary:hover {
-  color: #fff;
+  color: var(--c-on-brand);
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
 }
@@ -667,7 +689,7 @@ h6[id] {
 }
 .prose p,
 .prose li {
-  color: #233a33;
+  color: var(--c-prose);
 }
 .prose ul,
 .prose ol {
@@ -686,7 +708,7 @@ h6[id] {
   background: var(--c-surface-2);
   padding: 0.8rem 1.1rem;
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  color: #2c4a41;
+  color: var(--c-prose);
 }
 
 /* Prose links */
@@ -750,13 +772,14 @@ h5:hover > .header-anchor {
   font-size: 0.95rem;
 }
 .prose thead {
-  background: linear-gradient(120deg, var(--c-primary-700), var(--c-primary));
-  color: #fff;
+  background: linear-gradient(120deg, var(--c-brand-fill-a), var(--c-brand-fill-b));
+  color: var(--c-on-brand);
 }
 .prose th,
 .prose td {
   text-align: left;
   padding: 0.7rem 0.95rem;
+  font-variant-numeric: tabular-nums;
   border-bottom: 1px solid var(--c-border);
   vertical-align: top;
 }
@@ -805,7 +828,7 @@ h5:hover > .header-anchor {
 .task-list-item-checkbox:checked::after {
   content: "✓";
   display: block;
-  color: #fff;
+  color: var(--c-on-brand);
   font-size: 0.85em;
   line-height: 1;
   text-align: center;
@@ -838,7 +861,7 @@ h5:hover > .header-anchor {
   font-family: var(--font-mono);
   background: none;
   padding: 0;
-  color: #243b33;
+  color: var(--c-code-text);
   white-space: pre;
 }
 
@@ -857,7 +880,7 @@ h5:hover > .header-anchor {
   font-weight: 650;
   font-family: var(--font-sans);
   color: var(--c-primary-700);
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--c-float-bg);
   border: 1px solid var(--c-border);
   border-radius: 8px;
   padding: 0.32rem 0.55rem;
@@ -871,7 +894,7 @@ h5:hover > .header-anchor {
   opacity: 1;
 }
 .copy-btn:hover {
-  background: #fff;
+  background: var(--c-surface);
   transform: translateY(-1px);
 }
 .copy-btn .icon {
@@ -879,8 +902,8 @@ h5:hover > .header-anchor {
   height: 14px;
 }
 .copy-btn.is-copied {
-  color: #fff;
-  background: var(--c-primary);
+  color: var(--c-on-brand);
+  background: var(--c-brand-fill-b);
   border-color: var(--c-primary);
   opacity: 1;
 }
@@ -1011,7 +1034,7 @@ h5:hover > .header-anchor {
 }
 .faq-item__body {
   padding: 0 1.1rem 1.1rem;
-  color: #233a33;
+  color: var(--c-prose);
 }
 .faq-item__body > * + * {
   margin-top: 0.8rem;
@@ -1124,8 +1147,8 @@ h5:hover > .header-anchor {
   position: absolute;
   left: 0.5rem;
   top: -3rem;
-  background: var(--c-primary);
-  color: #fff;
+  background: var(--c-brand-fill-b);
+  color: var(--c-on-brand);
   padding: 0.5rem 0.9rem;
   border-radius: 8px;
   z-index: 100;
@@ -1133,7 +1156,7 @@ h5:hover > .header-anchor {
 }
 .skip-link:focus {
   top: 0.5rem;
-  color: #fff;
+  color: var(--c-on-brand);
 }
 /* In-article diagram SVGs: fill the text column, override inline max-width caps.
    Scoped to .prose svg[role="img"] so UI icons are unaffected. */
@@ -1141,4 +1164,370 @@ h5:hover > .header-anchor {
   width: 100% !important;
   max-width: 100% !important;
   height: auto;
+  /* Full-canvas ground. Diagram labels are drawn in currentColor over shapes
+     that are mostly translucent tints, so without an opaque canvas the label's
+     real backdrop is whatever the page paints — which flips with the theme.
+     Painting it here means one rule covers every diagram in both schemes. */
+  background: var(--c-bg);
+}
+
+/* ========================== Diagram ink remap ===========================
+   In-article SVGs draw with currentColor and translucent tints, which follow
+   the theme for free. These selectors catch the handful of LABEL colours that
+   are baked as hex presentation attributes, so a label never sits below AA on
+   either ground. Shape tints (low-opacity rects) are deliberately left alone —
+   they read as tints over whichever page background is behind them. */
+.prose svg text[fill="#f3a712"],
+.prose svg tspan[fill="#f3a712"],
+.prose svg g[fill="#f3a712"] text {
+  fill: var(--svg-amber);
+}
+.prose svg text[fill="#11839e"],
+.prose svg tspan[fill="#11839e"],
+.prose svg g[fill="#11839e"] text {
+  fill: var(--svg-cyan);
+}
+.prose svg text[fill="#0f6e63"],
+.prose svg text[fill="#0d5a47"],
+.prose svg tspan[fill="#0f6e63"],
+.prose svg g[fill="#0f6e63"] text {
+  fill: var(--svg-teal);
+}
+.prose svg text[fill="#c0392b"],
+.prose svg tspan[fill="#c0392b"] {
+  fill: var(--svg-red);
+}
+
+/* ============================= Theme toggle ============================= */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border: 1px solid var(--c-border);
+  border-radius: 999px;
+  background: var(--c-surface);
+  color: var(--c-primary-700);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition),
+    transform var(--transition);
+}
+.theme-toggle:hover {
+  background: var(--c-surface-2);
+  transform: translateY(-1px);
+}
+.theme-toggle .icon {
+  width: 20px;
+  height: 20px;
+}
+/* One control, two glyphs: show the scheme the click will switch TO — a moon
+   while the page is light, a sun while it is dark. Mirrored onto the OS
+   preference so the glyph is right before anyone touches the toggle. */
+.theme-toggle .icon--sun {
+  display: none;
+}
+[data-theme="dark"] .theme-toggle .icon--sun {
+  display: block;
+}
+[data-theme="dark"] .theme-toggle .icon--moon {
+  display: none;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .theme-toggle .icon--sun {
+    display: block;
+  }
+  :root:not([data-theme="light"]) .theme-toggle .icon--moon {
+    display: none;
+  }
+}
+@media (max-width: 860px) {
+  /* Sits between the brand and the burger, outside the collapsing nav, so the
+     scheme can be changed without opening the menu. */
+  .site-header__inner {
+    gap: 0.5rem;
+  }
+  .theme-toggle {
+    margin-left: auto;
+  }
+}
+
+/* ============================== Dark theme ==============================
+   Every colour above is a token, so the dark scheme is a token swap plus the
+   handful of rules where a token was used as a FILL under light text (footer,
+   table heads, primary buttons) — those keep a dark brand fill instead of
+   inheriting the lightened brand hue.
+
+   `:root:not([data-theme="light"])` under prefers-color-scheme handles the
+   default "follow the OS" state; the explicit [data-theme] blocks let the
+   toggle win in both directions. */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --c-bg: #0c1512;
+  --c-surface: #13201c;
+  --c-surface-2: #1a2b26;
+  --c-primary: #2fbd8e;
+  --c-primary-700: #7fe0b8;
+  --c-primary-300: #46cf9c;
+  --c-secondary: #46b6d4;
+  --c-secondary-700: #7ad3ea;
+  --c-accent: #f7bf4f;
+  --c-accent-700: #f3a712;
+  --c-text: #e7f2ec;
+  --c-prose: #cfe2d9;
+  --c-muted: #9db3aa;
+  --c-border: #2a3f38;
+  --c-code-bg: #101b18;
+  --c-code-border: #24382f;
+  --c-code-text: #d7e7de;
+
+  --c-brand-fill-a: #0b483b;
+  --c-brand-fill-b: #0f6053;
+  --c-on-brand: #eafaf3;
+  --c-header-bg: rgba(12, 21, 18, 0.88);
+  --c-float-bg: rgba(19, 32, 28, 0.94);
+
+  --svg-amber: #f7c460;
+  --svg-cyan: #7ad3ea;
+  --svg-teal: #6fe0b4;
+  --svg-red: #ff9384;
+  --svg-amber-line: #f3a712;
+  --svg-cyan-line: #46b6d4;
+  --svg-teal-line: #2fbd8e;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.42), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 18px 40px rgba(0, 0, 0, 0.5);
+  --ring: 0 0 0 3px rgba(122, 211, 234, 0.45);
+}
+[data-theme="dark"] .site-footer {
+  background: linear-gradient(180deg, #10201b, #08120f);
+  color: #cfe3da;
+}
+[data-theme="dark"] .site-footer a,
+[data-theme="dark"] .site-footer__brand {
+  color: #dff0e8;
+}
+[data-theme="dark"] .site-footer a:hover {
+  color: #ffffff;
+}
+[data-theme="dark"] .site-footer__tag {
+  color: #a9c6ba;
+}
+[data-theme="dark"] .footer-nav h2,
+[data-theme="dark"] .site-footer__bottom {
+  color: #a3c1b4;
+}
+[data-theme="dark"] .hero::before {
+  background: radial-gradient(60% 55% at 50% 0%, rgba(70, 182, 212, 0.16), transparent 70%),
+    radial-gradient(50% 50% at 85% 30%, rgba(47, 189, 142, 0.14), transparent 70%);
+}
+[data-theme="dark"] .nav__link[aria-current="page"],
+[data-theme="dark"] .related a[aria-current="page"],
+[data-theme="dark"] .toc a.is-active {
+  background: linear-gradient(120deg, rgba(70, 182, 212, 0.22), rgba(47, 189, 142, 0.22));
+  color: var(--c-primary-700);
+}
+[data-theme="dark"] .card__icon {
+  background: linear-gradient(135deg, rgba(70, 182, 212, 0.22), rgba(47, 189, 142, 0.24));
+  color: var(--c-primary-700);
+}
+[data-theme="dark"] .prose tbody tr:hover {
+  background: rgba(47, 189, 142, 0.12);
+}
+[data-theme="dark"] .prose svg [stroke="#0f6e63"] {
+  stroke: var(--svg-teal-line);
+}
+[data-theme="dark"] .prose svg [stroke="#11839e"] {
+  stroke: var(--svg-cyan-line);
+}
+[data-theme="dark"] .prose svg [stroke="#c9820a"] {
+  stroke: var(--svg-amber-line);
+}
+[data-theme="dark"] .prose svg [stroke="#c0392b"] {
+  stroke: var(--svg-red);
+}
+/* Prism, retuned for the dark code surface. */
+[data-theme="dark"] .token.comment,
+[data-theme="dark"] .token.prolog,
+[data-theme="dark"] .token.doctype,
+[data-theme="dark"] .token.cdata {
+  color: #8ba79c;
+}
+[data-theme="dark"] .token.punctuation {
+  color: #a9c0b6;
+}
+[data-theme="dark"] .token.keyword,
+[data-theme="dark"] .token.boolean,
+[data-theme="dark"] .token.atrule,
+[data-theme="dark"] .token.regex,
+[data-theme="dark"] .token.important,
+[data-theme="dark"] .token.variable {
+  color: #f0a86a;
+}
+[data-theme="dark"] .token.string,
+[data-theme="dark"] .token.char,
+[data-theme="dark"] .token.attr-value,
+[data-theme="dark"] .token.inserted {
+  color: #7ad3ea;
+}
+[data-theme="dark"] .token.function,
+[data-theme="dark"] .token.class-name {
+  color: #d0a8ee;
+}
+[data-theme="dark"] .token.number,
+[data-theme="dark"] .token.constant,
+[data-theme="dark"] .token.symbol {
+  color: #e9c46a;
+}
+[data-theme="dark"] .token.operator,
+[data-theme="dark"] .token.entity,
+[data-theme="dark"] .token.url {
+  color: #6fe0b4;
+}
+[data-theme="dark"] .token.builtin,
+[data-theme="dark"] .token.tag,
+[data-theme="dark"] .token.selector,
+[data-theme="dark"] .token.property {
+  color: #4fd6a3;
+}
+[data-theme="dark"] .token.deleted {
+  color: #ff9384;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --c-bg: #0c1512;
+    --c-surface: #13201c;
+    --c-surface-2: #1a2b26;
+    --c-primary: #2fbd8e;
+    --c-primary-700: #7fe0b8;
+    --c-primary-300: #46cf9c;
+    --c-secondary: #46b6d4;
+    --c-secondary-700: #7ad3ea;
+    --c-accent: #f7bf4f;
+    --c-accent-700: #f3a712;
+    --c-text: #e7f2ec;
+    --c-prose: #cfe2d9;
+    --c-muted: #9db3aa;
+    --c-border: #2a3f38;
+    --c-code-bg: #101b18;
+    --c-code-border: #24382f;
+    --c-code-text: #d7e7de;
+
+    --c-brand-fill-a: #0b483b;
+    --c-brand-fill-b: #0f6053;
+    --c-on-brand: #eafaf3;
+    --c-header-bg: rgba(12, 21, 18, 0.88);
+    --c-float-bg: rgba(19, 32, 28, 0.94);
+
+    --svg-amber: #f7c460;
+    --svg-cyan: #7ad3ea;
+    --svg-teal: #6fe0b4;
+    --svg-red: #ff9384;
+    --svg-amber-line: #f3a712;
+    --svg-cyan-line: #46b6d4;
+    --svg-teal-line: #2fbd8e;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.25);
+    --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.42), 0 2px 6px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 18px 40px rgba(0, 0, 0, 0.5);
+    --ring: 0 0 0 3px rgba(122, 211, 234, 0.45);
+  }
+  :root:not([data-theme="light"]) .site-footer {
+    background: linear-gradient(180deg, #10201b, #08120f);
+    color: #cfe3da;
+  }
+  :root:not([data-theme="light"]) .site-footer a,
+  :root:not([data-theme="light"]) .site-footer__brand {
+    color: #dff0e8;
+  }
+  :root:not([data-theme="light"]) .site-footer a:hover {
+    color: #ffffff;
+  }
+  :root:not([data-theme="light"]) .site-footer__tag {
+    color: #a9c6ba;
+  }
+  :root:not([data-theme="light"]) .footer-nav h2,
+  :root:not([data-theme="light"]) .site-footer__bottom {
+    color: #a3c1b4;
+  }
+  :root:not([data-theme="light"]) .hero::before {
+    background: radial-gradient(60% 55% at 50% 0%, rgba(70, 182, 212, 0.16), transparent 70%),
+      radial-gradient(50% 50% at 85% 30%, rgba(47, 189, 142, 0.14), transparent 70%);
+  }
+  :root:not([data-theme="light"]) .nav__link[aria-current="page"],
+  :root:not([data-theme="light"]) .related a[aria-current="page"],
+  :root:not([data-theme="light"]) .toc a.is-active {
+    background: linear-gradient(120deg, rgba(70, 182, 212, 0.22), rgba(47, 189, 142, 0.22));
+    color: var(--c-primary-700);
+  }
+  :root:not([data-theme="light"]) .card__icon {
+    background: linear-gradient(135deg, rgba(70, 182, 212, 0.22), rgba(47, 189, 142, 0.24));
+    color: var(--c-primary-700);
+  }
+  :root:not([data-theme="light"]) .prose tbody tr:hover {
+    background: rgba(47, 189, 142, 0.12);
+  }
+  :root:not([data-theme="light"]) .prose svg [stroke="#0f6e63"] {
+    stroke: var(--svg-teal-line);
+  }
+  :root:not([data-theme="light"]) .prose svg [stroke="#11839e"] {
+    stroke: var(--svg-cyan-line);
+  }
+  :root:not([data-theme="light"]) .prose svg [stroke="#c9820a"] {
+    stroke: var(--svg-amber-line);
+  }
+  :root:not([data-theme="light"]) .prose svg [stroke="#c0392b"] {
+    stroke: var(--svg-red);
+  }
+  /* Prism, retuned for the dark code surface. */
+  :root:not([data-theme="light"]) .token.comment,
+  :root:not([data-theme="light"]) .token.prolog,
+  :root:not([data-theme="light"]) .token.doctype,
+  :root:not([data-theme="light"]) .token.cdata {
+    color: #8ba79c;
+  }
+  :root:not([data-theme="light"]) .token.punctuation {
+    color: #a9c0b6;
+  }
+  :root:not([data-theme="light"]) .token.keyword,
+  :root:not([data-theme="light"]) .token.boolean,
+  :root:not([data-theme="light"]) .token.atrule,
+  :root:not([data-theme="light"]) .token.regex,
+  :root:not([data-theme="light"]) .token.important,
+  :root:not([data-theme="light"]) .token.variable {
+    color: #f0a86a;
+  }
+  :root:not([data-theme="light"]) .token.string,
+  :root:not([data-theme="light"]) .token.char,
+  :root:not([data-theme="light"]) .token.attr-value,
+  :root:not([data-theme="light"]) .token.inserted {
+    color: #7ad3ea;
+  }
+  :root:not([data-theme="light"]) .token.function,
+  :root:not([data-theme="light"]) .token.class-name {
+    color: #d0a8ee;
+  }
+  :root:not([data-theme="light"]) .token.number,
+  :root:not([data-theme="light"]) .token.constant,
+  :root:not([data-theme="light"]) .token.symbol {
+    color: #e9c46a;
+  }
+  :root:not([data-theme="light"]) .token.operator,
+  :root:not([data-theme="light"]) .token.entity,
+  :root:not([data-theme="light"]) .token.url {
+    color: #6fe0b4;
+  }
+  :root:not([data-theme="light"]) .token.builtin,
+  :root:not([data-theme="light"]) .token.tag,
+  :root:not([data-theme="light"]) .token.selector,
+  :root:not([data-theme="light"]) .token.property {
+    color: #4fd6a3;
+  }
+  :root:not([data-theme="light"]) .token.deleted {
+    color: #ff9384;
+  }
 }

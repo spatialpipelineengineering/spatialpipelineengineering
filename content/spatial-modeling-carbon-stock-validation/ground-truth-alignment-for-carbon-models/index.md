@@ -89,6 +89,42 @@ Three failure modes account for the overwhelming majority of rejected or re-open
 
 **3. Regression misspecification under spatial autocorrelation and heteroscedasticity.** Ordinary least squares assumes independent, identically distributed, homoscedastic residuals. Biomass fields violate all three assumptions: neighbouring plots are spatially autocorrelated, variance grows with stand density, and residual cloud or masking artifacts inject outliers. Fitting OLS to such data produces over-optimistic standard errors and a slope that is unduly leveraged by a handful of extreme points. The impact is twofold — confidence intervals that are too narrow to be defensible, and systematic over- or under-estimation in specific strata (young stands, degraded forest) that surfaces only after the model is deployed. Left uncorrected, this failure mode passes internal checks and fails external verification.
 
+<svg viewBox="0 -4 880 216" role="img" aria-labelledby="gt-t gt-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="gt-t">Four ways a field plot and a raster pixel fail to describe the same thing</title>
+  <desc id="gt-d">Four mismatches between a field plot and the raster cell it is joined to. Spatial support: a circular 500 square metre plot does not align with a 900 square metre square pixel, so each describes a different area. Positional error: consumer-grade satellite positioning under canopy is routinely off by five to fifteen metres, comparable to the pixel size. Temporal offset: a plot measured in 2024 joined to a 2026 composite includes two years of growth or loss. Definitional mismatch: the plot measures stems above a diameter cut-off while the sensor sees canopy, so a plot with dense understorey and few large stems is bright and low-biomass at once. A panel notes that all four bias the calibration rather than merely adding noise.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">All four bias the calibration; none of them merely add noise</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">A plot and the pixel it is joined to are not the same observation.</text>
+    <rect x="12" y="52" width="212" height="140" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="12" y="52" width="212" height="140" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="28" y="76" fill="currentColor" font-size="10.5" font-weight="700">Spatial support</text>
+    <text x="28" y="100" fill="currentColor" font-size="9.5" opacity="0.85">circular 500 m² plot</text>
+    <text x="28" y="118" fill="currentColor" font-size="9.5" opacity="0.85">square 900 m² pixel</text>
+    <text x="28" y="146" fill="currentColor" font-size="9.5" font-weight="700">different areas entirely</text>
+    <text x="28" y="172" fill="currentColor" font-size="9" opacity="0.75">aggregate pixels to plot support</text>
+    <rect x="236" y="52" width="212" height="140" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="236" y="52" width="212" height="140" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="252" y="76" fill="currentColor" font-size="10.5" font-weight="700">Positional error</text>
+    <text x="252" y="100" fill="currentColor" font-size="9.5" opacity="0.85">5–15 m under canopy</text>
+    <text x="252" y="118" fill="currentColor" font-size="9.5" opacity="0.85">comparable to pixel size</text>
+    <text x="252" y="146" fill="#f3a712" font-size="9.5" font-weight="700">joins to the wrong cell</text>
+    <text x="252" y="172" fill="currentColor" font-size="9" opacity="0.75">survey-grade GNSS or bust</text>
+    <rect x="460" y="52" width="212" height="140" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="460" y="52" width="212" height="140" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="476" y="76" fill="currentColor" font-size="10.5" font-weight="700">Temporal offset</text>
+    <text x="476" y="100" fill="currentColor" font-size="9.5" opacity="0.85">2024 plot, 2026 composite</text>
+    <text x="476" y="118" fill="currentColor" font-size="9.5" opacity="0.85">two years of growth or loss</text>
+    <text x="476" y="146" fill="currentColor" font-size="9.5" font-weight="700">a systematic offset</text>
+    <text x="476" y="172" fill="currentColor" font-size="9" opacity="0.75">grow the plot forward, or exclude</text>
+    <rect x="684" y="52" width="184" height="140" rx="9" fill="none" stroke="#f3a712" stroke-width="1.9" stroke-dasharray="6,3"/>
+    <text x="700" y="76" fill="currentColor" font-size="10.5" font-weight="700">Definitional</text>
+    <text x="700" y="100" fill="currentColor" font-size="9.5" opacity="0.85">plot: stems above a</text>
+    <text x="700" y="118" fill="currentColor" font-size="9.5" opacity="0.85">diameter cut-off</text>
+    <text x="700" y="140" fill="currentColor" font-size="9.5" opacity="0.85">sensor: canopy</text>
+    <text x="700" y="166" fill="#f3a712" font-size="9.5" font-weight="700">no correction fixes this</text>
+  </g>
+</svg>
+
 ## Deterministic Implementation Architecture
 
 The implementation treats alignment as a sequence of deterministic, individually validated transformations rather than a single regression call. The first stage harmonizes coordinate systems and performs a tolerance-aware extraction, directly mitigating failure mode 1. Rather than relying on exact coordinate matches, it projects field geometries into the exact CRS and affine transform of the target raster, buffers each plot, and aggregates the enclosed pixels with a robust statistic that suppresses geolocation noise. Every CRS transformation and extraction outcome is emitted to `structlog` so the run is reconstructable from logs alone.
@@ -250,6 +286,66 @@ The value of the structured outputs above is that each one maps to a specific cl
 Reading the table top to bottom is also the debugging order. If a calibration is rejected, the first check is the CRS log line: a missing or assumed datum invalidates every extraction beneath it. If geometry is sound, the next suspect is the residual surface — residuals that cluster by stand age or acquisition date point to failure modes 3 and 2 respectively and call for stratified recalibration rather than a global refit. RMSE and R² are read last, because a healthy aggregate metric can still hide a stratum-specific bias that an auditor will surface.
 
 Compliance mapping is not a reporting afterthought; it is the reason the pipeline logs what it logs. By emitting CRS transformations, buffer radii, cloud-probability thresholds, temporal windows, and robust-regression parameters as structured events, the workflow produces the deterministic lineage record that the [data lineage and provenance](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/mrv-data-lineage-provenance-tracking/) stage ingests and that auditors query directly. This is what eliminates the "black box" opacity that routinely stalls third-party verification: every number in the final baseline traces back to a logged decision with a justification attached. The corrected slope, intercept, and residual surfaces then feed [Emission Factor Uncertainty Mapping](https://www.spatialpipelineengineering.org/spatial-modeling-carbon-stock-validation/emission-factor-uncertainty-mapping/), where they are combined with IPCC Tier 2/3 propagation rules to produce defensible confidence intervals.
+
+<svg viewBox="0 -4 880 214" role="img" aria-labelledby="sup-t sup-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="sup-t">Matching support: aggregating pixels to the plot rather than sampling one</title>
+  <desc id="sup-d">Three joining strategies for a circular field plot overlaid on a raster grid. Nearest-pixel sampling takes the single cell containing the plot centre, which ignores most of the plot and is highly sensitive to positional error. Simple window averaging takes a fixed three-by-three block, which includes area outside the plot and dilutes the match in heterogeneous stands. Area-weighted aggregation weights each intersecting cell by its overlap with the plot polygon, which reproduces the plot's own support and degrades gracefully as positional error grows. The third is marked as the default, with a note that it also yields an overlap-weighted variance that can be carried into the model as an observation weight.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Aggregate to the plot's support, not to a pixel</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Three ways to join a circular plot to a raster grid.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1" opacity="0.45" fill="none">
+    <rect x="40" y="64" width="36" height="36"/><rect x="76" y="64" width="36" height="36"/><rect x="112" y="64" width="36" height="36"/>
+    <rect x="40" y="100" width="36" height="36"/><rect x="76" y="100" width="36" height="36"/><rect x="112" y="100" width="36" height="36"/>
+    <rect x="40" y="136" width="36" height="36"/><rect x="76" y="136" width="36" height="36"/><rect x="112" y="136" width="36" height="36"/>
+    <rect x="330" y="64" width="36" height="36"/><rect x="366" y="64" width="36" height="36"/><rect x="402" y="64" width="36" height="36"/>
+    <rect x="330" y="100" width="36" height="36"/><rect x="366" y="100" width="36" height="36"/><rect x="402" y="100" width="36" height="36"/>
+    <rect x="330" y="136" width="36" height="36"/><rect x="366" y="136" width="36" height="36"/><rect x="402" y="136" width="36" height="36"/>
+    <rect x="620" y="64" width="36" height="36"/><rect x="656" y="64" width="36" height="36"/><rect x="692" y="64" width="36" height="36"/>
+    <rect x="620" y="100" width="36" height="36"/><rect x="656" y="100" width="36" height="36"/><rect x="692" y="100" width="36" height="36"/>
+    <rect x="620" y="136" width="36" height="36"/><rect x="656" y="136" width="36" height="36"/><rect x="692" y="136" width="36" height="36"/>
+  </g>
+  <rect x="76" y="100" width="36" height="36" fill="currentColor" opacity="0.35"/>
+  <rect x="330" y="64" width="108" height="108" fill="currentColor" opacity="0.16"/>
+  <rect x="656" y="100" width="36" height="36" fill="currentColor" opacity="0.34"/>
+  <rect x="620" y="100" width="36" height="36" fill="currentColor" opacity="0.2"/>
+  <rect x="692" y="100" width="36" height="36" fill="currentColor" opacity="0.2"/>
+  <rect x="656" y="64" width="36" height="36" fill="currentColor" opacity="0.2"/>
+  <rect x="656" y="136" width="36" height="36" fill="currentColor" opacity="0.2"/>
+  <circle cx="94" cy="118" r="40" fill="none" stroke="currentColor" stroke-width="2.2"/>
+  <circle cx="384" cy="118" r="40" fill="none" stroke="currentColor" stroke-width="2.2"/>
+  <circle cx="674" cy="118" r="40" fill="none" stroke="#f3a712" stroke-width="2.6"/>
+  <g font-family="system-ui, sans-serif" text-anchor="middle" font-size="9.5">
+    <text x="94" y="192" fill="currentColor" font-weight="700">Nearest pixel</text>
+    <text x="94" y="208" fill="currentColor" opacity="0.85">ignores most of the plot</text>
+    <text x="384" y="192" fill="currentColor" font-weight="700">Fixed 3 × 3 window</text>
+    <text x="384" y="208" fill="currentColor" opacity="0.85">includes area outside it</text>
+    <text x="674" y="192" fill="#f3a712" font-weight="700">Area-weighted overlap</text>
+    <text x="674" y="208" fill="currentColor" opacity="0.85">reproduces the plot's support</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### How accurate does plot positioning need to be?
+
+Better than half the pixel size, which for 30-metre imagery means around 10 metres or better and rules out consumer-grade positioning under closed canopy. Where survey-grade equipment is unavailable, the fallback is larger plots that span several pixels, so the join is dominated by the plot's own footprint rather than by which cell the centre happened to land in. Record the positioning method and its stated accuracy per plot — a mixed-accuracy campaign should be weighted, not averaged.
+
+### Should plots be joined to the nearest pixel or an aggregate?
+
+An area-weighted aggregate over the cells intersecting the plot polygon. Nearest-pixel sampling discards most of the plot and is exquisitely sensitive to positional error; a fixed window includes area the plot never measured. Overlap weighting reproduces the plot's own spatial support, degrades gracefully as positional uncertainty grows, and yields an overlap-weighted variance you can carry into the model as an observation weight.
+
+### How do I handle a temporal gap between the field campaign and the imagery?
+
+Prefer imagery from the same season as the campaign; where that is impossible, grow the plot measurement forward with a documented increment model and record the adjustment. Ignoring a two-year gap in a growing stand introduces a systematic offset that the model absorbs as a bias in its intercept, which then applies everywhere. Where the gap is large or the stand was disturbed in the interval, exclude the plot rather than adjust it.
+
+### What is the definitional mismatch, and can it be corrected?
+
+The plot measures stems above a diameter cut-off; the sensor sees canopy. A stand with dense understorey and few large stems is bright and low-biomass simultaneously, and no geometric or temporal correction resolves that — it is a difference in what is being measured. The practical treatments are to stratify the model by stand structure so the relationship is fitted within comparable types, and to record the plot protocol's cut-off so a reader knows what the calibration measured.
+
+### How many plots does a calibration need?
+
+Enough to span the range of the predicted quantity, with replication in each stratum — a coverage question rather than a count. Fifty plots spread across the full biomass range and every major stand type outperform three hundred concentrated in accessible mature forest. Check coverage in covariate space, not just in geography, since accessible plots tend to cluster in a corner of it.
 
 ## Conclusion
 

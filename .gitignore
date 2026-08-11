@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build output
+_site/
+.cache/
+.eleventy.cache/
+
+# Wrangler / Cloudflare
+.wrangler/
+.dev.vars
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Cloudflare deploy credentials
+.env

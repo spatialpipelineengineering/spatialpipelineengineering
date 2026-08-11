@@ -167,6 +167,55 @@ def diagnose_factor_drift(
 
 A non-empty `drifted_rows` count is not a failure to suppress — it is the signal that a new factor release genuinely changes historical results, which is exactly the condition an effective-dated join must prevent from leaking into already-reported periods. The diagnostic makes that decision explicit rather than discovering it after publication.
 
+<svg viewBox="0 -4 900 236" role="img" aria-labelledby="bit-t bit-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="bit-t">Bitemporal factor lookup: valid time against transaction time</title>
+  <desc id="bit-d">A grid with valid time on the horizontal axis, meaning the period the factor applies to, and transaction time on the vertical axis, meaning when the pipeline asked. A query for the 2026 period asked in 2027 returns factor version 3.1, the value published at that time. The same query for the same 2026 period asked again in 2030, after a revision, still returns 3.1 when asked as-of the original submission, and returns the revised 3.4 only when explicitly asked for the current view. A panel states that a single-axis factor table can answer only one of these questions, and that the one it usually answers is the wrong one for defending a published figure.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Two questions, two axes</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">“What applies to 2026?” and “what did we believe in 2027?” are different queries.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1.3">
+    <line x1="120" y1="56" x2="120" y2="190"/>
+    <line x1="120" y1="190" x2="620" y2="190"/>
+  </g>
+  <g stroke="currentColor" stroke-width="1" opacity="0.22">
+    <line x1="120" y1="100" x2="620" y2="100"/><line x1="120" y1="145" x2="620" y2="145"/>
+    <line x1="286" y1="56" x2="286" y2="190"/><line x1="453" y1="56" x2="453" y2="190"/>
+  </g>
+  <g font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.75">
+    <text x="112" y="80" text-anchor="end">asked 2030</text>
+    <text x="112" y="125" text-anchor="end">asked 2027</text>
+    <text x="112" y="170" text-anchor="end">asked 2026</text>
+    <text x="203" y="208" text-anchor="middle">2026 period</text>
+    <text x="370" y="208" text-anchor="middle">2027 period</text>
+    <text x="536" y="208" text-anchor="middle">2028 period</text>
+    <text x="370" y="226" text-anchor="middle" font-weight="600">valid time — the period the factor applies to</text>
+  </g>
+  <g font-family="system-ui, sans-serif" text-anchor="middle">
+    <rect x="130" y="152" width="146" height="32" rx="5" fill="currentColor" opacity="0.16"/>
+    <text x="203" y="173" fill="currentColor" font-size="9.5" font-weight="700">v3.1</text>
+    <rect x="130" y="107" width="146" height="32" rx="5" fill="currentColor" opacity="0.16"/>
+    <text x="203" y="128" fill="currentColor" font-size="9.5" font-weight="700">v3.1</text>
+    <rect x="130" y="62" width="146" height="32" rx="5" fill="#f3a712" opacity="0.26"/>
+    <text x="203" y="83" fill="currentColor" font-size="9.5" font-weight="700">v3.1 as-of · v3.4 current</text>
+    <rect x="297" y="107" width="146" height="32" rx="5" fill="currentColor" opacity="0.16"/>
+    <text x="370" y="128" fill="currentColor" font-size="9.5" font-weight="700">v3.2</text>
+    <rect x="297" y="62" width="146" height="32" rx="5" fill="currentColor" opacity="0.16"/>
+    <text x="370" y="83" fill="currentColor" font-size="9.5" font-weight="700">v3.2</text>
+    <rect x="464" y="62" width="146" height="32" rx="5" fill="currentColor" opacity="0.16"/>
+    <text x="537" y="83" fill="currentColor" font-size="9.5" font-weight="700">v3.4</text>
+  </g>
+  <g font-family="system-ui, sans-serif">
+    <rect x="644" y="62" width="244" height="122" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="644" y="62" width="244" height="122" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="660" y="86" fill="currentColor" font-size="10" font-weight="700">A single-axis table</text>
+    <text x="660" y="110" fill="currentColor" font-size="9.5" opacity="0.85">answers only one of these —</text>
+    <text x="660" y="128" fill="currentColor" font-size="9.5" opacity="0.85">usually “what applies now”.</text>
+    <text x="660" y="152" fill="#f3a712" font-size="9.5" font-weight="700">Defending a published figure</text>
+    <text x="660" y="170" fill="#f3a712" font-size="9.5" font-weight="700">needs the other one.</text>
+  </g>
+</svg>
+
 ## Deterministic Transformation Logic
 
 The transformation is an as-of (bitemporal) merge: each activity record is matched to the single factor row whose validity interval `[valid_from, valid_to)` contains the `activity_date`, keyed by `factor_id`. This guarantees era-correctness — a 2021 activity binds to the factor that was in force in 2021 regardless of later revisions. The routine below performs the interval join, pins both `factor_version` and the release content hash into every output row, emits a per-output content hash for downstream lineage, and refuses to return an unpinned frame.
@@ -278,6 +327,56 @@ Deploy the routine inside the orchestrator described in [orchestrating MRV data 
 6. **Submit.** Forward `factor_version` and both hashes into the lineage record consumed by [MRV data lineage and provenance tracking](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/mrv-data-lineage-provenance-tracking/), and feed the resolved factor values into downstream stages such as [emission factor uncertainty mapping](https://www.spatialpipelineengineering.org/spatial-modeling-carbon-stock-validation/emission-factor-uncertainty-mapping/), which propagates each pinned factor's variance.
 
 By making factor tables immutable and content-addressed, joining on effective date, and pinning the resolved version into every output and its lineage, the pipeline guarantees that a figure reported in 2021 stays byte-identical when regenerated in 2026 — the reproducibility contract that lets automated MRV survive third-party verification.
+
+<svg viewBox="0 -4 880 222" role="img" aria-labelledby="rev-t2 rev-d2" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="rev-t2">Blast radius of a factor revision across a portfolio</title>
+  <desc id="rev-d2">A revision to a single grid-intensity factor propagates through a portfolio. It touches 3 of 9 projects, 14 of 108 reporting periods, and 2 published disclosures. Two of the touched projects are in an active crediting period and adopt the revision going forward only; one has a published figure that changes by 2.4 percent, which crosses the materiality threshold and requires a restatement. A panel notes that the impact query — which published figures used this factor version — must be answerable from the data rather than by searching code, and that it is the single most valuable query a factor store provides.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">One factor revision, three different consequences</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Grid-intensity factor for one region, revised.</text>
+    <rect x="12" y="52" width="272" height="70" rx="8" fill="currentColor" opacity="0.1"/>
+    <rect x="12" y="52" width="272" height="70" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <text x="28" y="76" fill="currentColor" font-size="10" font-weight="700">Blast radius</text>
+    <text x="28" y="100" fill="currentColor" font-size="9.5" opacity="0.85">3 of 9 projects · 14 of 108 periods · 2 disclosures</text>
+    <rect x="304" y="52" width="272" height="70" rx="8" fill="currentColor" opacity="0.06"/>
+    <rect x="304" y="52" width="272" height="70" rx="8" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="320" y="76" fill="currentColor" font-size="10" font-weight="700">2 projects · active period</text>
+    <text x="320" y="100" fill="currentColor" font-size="9.5" opacity="0.85">adopt going forward, no restatement</text>
+    <rect x="596" y="52" width="272" height="70" rx="8" fill="none" stroke="#f3a712" stroke-width="1.9" stroke-dasharray="6,3"/>
+    <text x="612" y="76" fill="currentColor" font-size="10" font-weight="700">1 project · published figure</text>
+    <text x="612" y="100" fill="#f3a712" font-size="9.5" font-weight="700">changes 2.4% — restatement required</text>
+    <rect x="12" y="140" width="856" height="70" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="12" y="140" width="856" height="70" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="28" y="164" fill="currentColor" font-size="10" font-weight="700">“Which published figures used factor version X?”</text>
+    <text x="28" y="188" fill="currentColor" font-size="9.5" opacity="0.85">must be a query against the data, not a search through code. It is the single most valuable thing a factor store provides.</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### Why does a factor database need two time axes?
+
+Because a figure must answer two different questions. "Which factor applies to the 2026 period" is valid time; "which factor did we use when we published in 2027" is transaction time. A single-axis table answers only the first, so re-running a 2026 inventory after a revision silently produces a different number from the one published. A bitemporal store answers both, which is what makes an as-of replay possible and what makes a restatement a deliberate act rather than an accident.
+
+### Should factor tables be append-only?
+
+Yes, without exception. A correction to a published factor is a new row with a new version and an effective date, never an edit to the existing row, because the old value is what a previously published figure was computed from. An in-place edit makes every historical figure unreproducible and, worse, makes the discrepancy invisible: the pipeline re-runs cleanly and produces a different answer with no indication that anything changed.
+
+### How do I find out which published figures a revision affects?
+
+By querying the factor version recorded on every row of the output. This is the reason `factor_id` and `factor_version` are carried on the record rather than held in configuration: it turns "which disclosures used this factor" from an archaeology exercise into a single query. Run that query as the first step of assessing any revision, before deciding whether to adopt it.
+
+### What granularity should a factor version have?
+
+Version the table as a whole and identify the row individually. A table-level version lets you pin an entire consistent set — which is what reproducibility requires, since factors are often revised together — while the row identifier lets you trace a specific multiplication. Versioning only rows makes it hard to state which coherent set produced a figure; versioning only tables makes it hard to explain which value changed.
+
+### How should third-party factor sources be handled?
+
+Mirror them, digest them, and pin the mirror. Published factor databases move, get reorganised, and occasionally disappear, and a pipeline that resolves a factor from a live external URL is not reproducible regardless of how carefully it records the version. Take a copy at adoption, record its content digest, and treat the mirror as the authoritative source for anything already published.
+
+### How should factor uncertainty be stored alongside the value?
+
+As explicit columns on the same row — a distribution family, its parameters, and the source of the estimate — rather than in a separate document. A factor without its uncertainty cannot be propagated, and a factor whose uncertainty lives in a PDF will be propagated with a guess. Where a source publishes only a range, record the range and the assumed distribution as separate fields so a later reader can see which was published and which was assumed.
 
 ## Related guides
 

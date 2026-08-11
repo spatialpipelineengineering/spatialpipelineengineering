@@ -105,6 +105,28 @@ Three failure modes dominate production masking. Each has a distinct technical r
 
 3. **Mask–reflectance misregistration across resolutions.** The SCL ships at 20 m and `QA60` at 60 m, while the spectral bands used for vegetation and soil-carbon proxies are 10–30 m. Resampling the mask with an interpolating method (bilinear, cubic) invents fractional validity values that have no physical meaning and blur the cloud boundary; resampling reflectance and mask onto different grids breaks the pixel-level correspondence that masking assumes. A 0.5-pixel offset on a 10 m Sentinel-2 grid is enough to leave a rim of cloud along every masked edge. The resolution is strict nearest-neighbour resampling of the boolean mask onto a single declared target CRS and resolution, with the affine transform validated before the mask is ever applied.
 
+<svg viewBox="0 -4 900 230" role="img" aria-labelledby="mask-t mask-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="mask-t">The two masking errors, and why they are not symmetric</title>
+  <desc id="mask-d">Two failure directions compared. Under-masking leaks bright cloud and dark shadow into the composite, producing high-biased reflectance where cloud remains and low-biased where shadow remains, which manufactures false change at cloud edges. Over-masking discards valid observations, thinning the time series until seasonal models cannot be fitted and biasing composites toward the conditions that survived the mask — typically the clearest, driest days. A panel notes the asymmetry: under-masking creates visible artefacts that get investigated, while over-masking silently reduces sample size and biases the remaining sample, so it is the failure that survives review.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Only one of these gets noticed</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Both are systematic. One leaves artefacts; the other leaves a quietly biased sample.</text>
+    <rect x="12" y="52" width="424" height="146" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="12" y="52" width="424" height="146" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="28" y="76" fill="currentColor" font-size="10.5" font-weight="700">Under-masking</text>
+    <text x="28" y="100" fill="currentColor" font-size="9.5" opacity="0.85">residual cloud → reflectance biased high</text>
+    <text x="28" y="120" fill="currentColor" font-size="9.5" opacity="0.85">residual shadow → biased low</text>
+    <text x="28" y="146" fill="currentColor" font-size="9.5" font-weight="700">manufactures change at cloud edges</text>
+    <text x="28" y="174" fill="currentColor" font-size="9.5" opacity="0.85">visible as speckle → someone investigates</text>
+    <rect x="456" y="52" width="432" height="146" rx="9" fill="none" stroke="#f3a712" stroke-width="1.9" stroke-dasharray="6,3"/>
+    <text x="472" y="76" fill="currentColor" font-size="10.5" font-weight="700">Over-masking</text>
+    <text x="472" y="100" fill="currentColor" font-size="9.5" opacity="0.85">valid observations discarded</text>
+    <text x="472" y="120" fill="currentColor" font-size="9.5" opacity="0.85">series too thin to fit a seasonal model</text>
+    <text x="472" y="146" fill="#f3a712" font-size="9.5" font-weight="700">composite biased toward clear, dry days</text>
+    <text x="472" y="174" fill="#f3a712" font-size="9.5" font-weight="700">looks clean → nobody investigates</text>
+  </g>
+</svg>
+
 ## Deterministic Implementation Architecture
 
 The routine below decodes multi-sensor QA metadata with explicit bitwise operations, aligns the resulting mask to a declared target CRS with nearest-neighbour resampling, and emits structured telemetry for every tile. It uses `rasterio` for I/O and reprojection, `numpy` for vectorized bit parsing, `xarray`/`dask` for chunked memory management at continental scale, `prefect` for orchestration and retry, and `structlog` for the machine-readable audit record. The validity-fraction gate is explicit: a tile whose clear fraction falls below the configured floor is flagged rather than silently differenced through.
@@ -276,6 +298,69 @@ The pipeline's gates map onto specific frameworks:
 - **Telemetry and fallback records → auditable provenance (CSRD ESRS E1).** Emitting cloud fraction, confidence tiers, source and target CRS, and fallback status as structured records creates the immutable provenance chain that CSRD ESRS E1 disclosures are scrutinized for, and that ultimately backs [carbon credit registry data integration](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/carbon-credit-registry-data-integration/) submissions.
 
 For debugging, three silent failures deserve dedicated diagnostics. Phantom contamination that traces tile seams indicates mask–reflectance misregistration — validate that mask and reflectance share an identical affine transform after alignment before trusting any composite. High NDVI persisting inside masked regions reveals cirrus leakage — confirm SCL class `10` and the Landsat cirrus bit are both excluded and that the mask is dilated. And a clear-fraction distribution that collapses toward the floor across a whole archive signals a decoding regression — trend the per-tile cloud fraction over time so a quietly changed QA product surfaces as a regression long before it crosses an audit tolerance.
+
+<svg viewBox="0 -4 900 232" role="img" aria-labelledby="mc-t mc-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="mc-t">Mask sources and what each one can and cannot see</title>
+  <desc id="mc-d">Four mask sources compared. The provider quality band is free, always available, and conservative, but misses thin cirrus and often mislabels bright surfaces. A physical rule-based mask adds thin-cirrus and shadow geometry using the sun and view angles, and is interpretable and tunable. A learned mask trained on labelled scenes performs best overall and is opaque, version-sensitive, and can fail unpredictably on surfaces absent from its training set. A temporal-consistency mask compares a pixel against its own recent history and catches what all three miss, at the cost of needing a time series. A panel recommends combining a physical or learned mask with a temporal check, and notes that no single source is adequate for MRV.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">No single mask source is adequate</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Each misses a different thing, and the misses are systematic.</text>
+    <rect x="12" y="52" width="212" height="148" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="12" y="52" width="212" height="148" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="28" y="76" fill="currentColor" font-size="10.5" font-weight="700">Provider QA band</text>
+    <text x="28" y="100" fill="currentColor" font-size="9.5" opacity="0.85">free, always present</text>
+    <text x="28" y="120" fill="currentColor" font-size="9.5" opacity="0.85">conservative</text>
+    <text x="28" y="146" fill="#f3a712" font-size="9.5" font-weight="700">misses thin cirrus</text>
+    <text x="28" y="166" fill="#f3a712" font-size="9.5" font-weight="700">mislabels bright ground</text>
+    <text x="28" y="188" fill="currentColor" font-size="9" opacity="0.75">a floor, not a solution</text>
+    <rect x="236" y="52" width="212" height="148" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="236" y="52" width="212" height="148" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="252" y="76" fill="currentColor" font-size="10.5" font-weight="700">Physical rules</text>
+    <text x="252" y="100" fill="currentColor" font-size="9.5" opacity="0.85">cirrus band + shadow geometry</text>
+    <text x="252" y="120" fill="currentColor" font-size="9.5" opacity="0.85">uses sun and view angles</text>
+    <text x="252" y="146" fill="currentColor" font-size="9.5" font-weight="700">interpretable, tunable</text>
+    <text x="252" y="166" fill="currentColor" font-size="9.5" opacity="0.85">you can explain a decision</text>
+    <text x="252" y="188" fill="currentColor" font-size="9" opacity="0.75">the auditable choice</text>
+    <rect x="460" y="52" width="212" height="148" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="460" y="52" width="212" height="148" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="476" y="76" fill="currentColor" font-size="10.5" font-weight="700">Learned mask</text>
+    <text x="476" y="100" fill="currentColor" font-size="9.5" opacity="0.85">best overall accuracy</text>
+    <text x="476" y="120" fill="currentColor" font-size="9.5" opacity="0.85">opaque, version-sensitive</text>
+    <text x="476" y="146" fill="#f3a712" font-size="9.5" font-weight="700">fails oddly on unseen surfaces</text>
+    <text x="476" y="166" fill="currentColor" font-size="9.5" opacity="0.85">pin the model version</text>
+    <text x="476" y="188" fill="currentColor" font-size="9" opacity="0.75">strong, needs governance</text>
+    <rect x="684" y="52" width="204" height="148" rx="9" fill="currentColor" opacity="0.12"/>
+    <rect x="684" y="52" width="204" height="148" rx="9" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <text x="700" y="76" fill="currentColor" font-size="10.5" font-weight="700">Temporal consistency</text>
+    <text x="700" y="100" fill="currentColor" font-size="9.5" opacity="0.85">pixel vs its own history</text>
+    <text x="700" y="120" fill="currentColor" font-size="9.5" opacity="0.85">catches what all three miss</text>
+    <text x="700" y="146" fill="currentColor" font-size="9.5" font-weight="700">needs a time series</text>
+    <text x="700" y="166" fill="currentColor" font-size="9.5" opacity="0.85">cheap once you have one</text>
+    <text x="700" y="188" fill="currentColor" font-size="9" opacity="0.78">combine with one of the others</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### Is the provider's quality band good enough on its own?
+
+No, though it is the right floor. Provider masks are tuned to be broadly conservative across every landscape on Earth, which means they miss thin cirrus that materially depresses reflectance and they over-flag bright surfaces such as sand, salt flats, and rooftops. For MRV, combine it with either physical cirrus and shadow tests or a learned mask, and add a temporal-consistency check — that combination catches the three failure classes that any single source leaves.
+
+### How do I detect over-masking?
+
+Trend the masked fraction per tile and per period, and compare it against the local cloud climatology. A masked fraction well above the expected cloud cover is over-masking, and it is invisible in the output because the surviving pixels look fine. A second check is the composite's bias: if compositing from a heavily masked stack produces systematically different values from a lightly masked one over the same period, the mask is selecting rather than filtering.
+
+### Should shadow be masked geometrically or spectrally?
+
+Both, intersected. Geometric projection from cloud objects using the solar and view angles predicts where a shadow must fall and is unambiguous about direction; a spectral test identifies dark, low-NIR pixels but cannot distinguish shadow from water or burnt ground. Requiring both — a dark pixel in the geometrically predicted location — cuts false shadow flags over water bodies dramatically, which is where most shadow over-masking comes from.
+
+### What should happen to a pixel with no valid observation in a period?
+
+It should be recorded as unobserved, never gap-filled silently into a composite that is presented as measured. Gap-filling is legitimate and often necessary, but the filled values must be flagged so downstream aggregation can weight or exclude them and so an auditor can see what fraction of a reported figure rests on interpolation rather than observation.
+
+### Does mask choice need to be versioned?
+
+Yes, exactly like a factor table. A mask change alters which observations enter every composite and therefore alters every derived figure, so it is a restatement trigger rather than a maintenance detail. Pin the mask algorithm and, for learned masks, the model weights; record both in the provenance footer; and prefer to change masks at a period boundary rather than mid-period.
 
 ## Conclusion
 

@@ -17,25 +17,25 @@ export default {
       icon: "blueprint",
       label: "MRV Architecture",
       blurb:
-        "Core design patterns for MRV pipelines: spatial alignment, GHG Protocol scoping, data lineage, and registry integration.",
+        "Core design patterns for MRV pipelines: equal-area spatial alignment, GHG Protocol scoping, spatial joins and topology, data lineage, and registry integration.",
     },
     "satellite-imagery-processing-for-emissions-tracking": {
       icon: "satellite",
       label: "Satellite Imagery",
       blurb:
-        "Cloud masking, temporal aggregation, distributed tile processing, and deforestation alerts from Sentinel & Landsat archives.",
+        "Cloud masking, temporal aggregation, distributed tile processing, deforestation alerts, and methane plume retrieval from Sentinel, Landsat and hyperspectral archives.",
     },
     "spatial-modeling-carbon-stock-validation": {
       icon: "forest",
       label: "Spatial Modeling",
       blurb:
-        "Carbon stock baselines, LiDAR/SAR biomass fusion, ground-truth alignment, and uncertainty mapping for validated models.",
+        "Carbon stock baselines, LiDAR/SAR biomass fusion, soil organic carbon, permanence and leakage monitoring, ground-truth alignment, and uncertainty mapping.",
     },
     "pipeline-orchestration-compliance-reference": {
       icon: "workflow",
       label: "Orchestration & Reference",
       blurb:
-        "Orchestrating MRV pipelines with Airflow/Prefect/Dagster, the canonical data-schema reference, and registry standards & methodologies.",
+        "Orchestrating MRV pipelines with Airflow/Prefect/Dagster, pipeline observability and failure modes, the canonical data-schema reference, and registry standards.",
     },
   },
 };

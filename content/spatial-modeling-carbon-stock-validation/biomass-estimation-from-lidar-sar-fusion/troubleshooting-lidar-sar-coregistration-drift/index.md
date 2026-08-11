@@ -193,6 +193,47 @@ def estimate_coregistration_drift(
 
 Two guards keep this diagnostic honest. A high `phase_error` — the normalised RMS of the correlation peak — signals that the two layers share little structure in this window (deep shadow, water, or genuine terrain distortion), so the shift estimate should not be trusted even if its magnitude looks small. And because the estimator can only recover a coherent translation, a tile that reports low drift here but still fuses poorly downstream is a strong indicator of the spatially variable terrain distortion described above, which must be routed back to geocoding rather than corrected with a shift.
 
+<svg viewBox="0 -4 880 216" role="img" aria-labelledby="dft-t dft-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="dft-t">Four drift patterns and the cause each one points to</title>
+  <desc id="dft-d">Four spatial patterns of coregistration residual vectors across a scene. A uniform shift, where every vector points the same way with the same length, indicates a constant geolocation offset and is corrected by a translation. A rotational pattern, where vectors circle a centre, indicates an orbit or attitude error. A terrain-correlated pattern, where vector length scales with slope, indicates a wrong or misaligned elevation model in the terrain correction. A random pattern with no structure indicates matching noise rather than drift, and is not correctable by any transform. A panel notes that plotting the residual field before fitting any correction is the single most useful diagnostic, because the pattern names the cause.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Plot the residual field before fitting anything</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">The pattern names the cause; the magnitude does not.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1.6">
+    <g>
+      <rect x="12" y="52" width="200" height="104" rx="8" fill="currentColor" opacity="0.04" stroke-width="1.1"/>
+      <line x1="46" y1="86" x2="72" y2="98"/><line x1="106" y1="86" x2="132" y2="98"/><line x1="166" y1="86" x2="192" y2="98"/>
+      <line x1="46" y1="122" x2="72" y2="134"/><line x1="106" y1="122" x2="132" y2="134"/><line x1="166" y1="122" x2="192" y2="134"/>
+    </g>
+    <g>
+      <rect x="228" y="52" width="200" height="104" rx="8" fill="currentColor" opacity="0.04" stroke-width="1.1"/>
+      <line x1="262" y1="80" x2="284" y2="70"/><line x1="322" y1="74" x2="348" y2="78"/><line x1="382" y1="82" x2="398" y2="102"/>
+      <line x1="258" y1="128" x2="278" y2="140"/><line x1="322" y1="136" x2="348" y2="132"/><line x1="386" y1="128" x2="400" y2="112"/>
+    </g>
+    <g>
+      <rect x="444" y="52" width="200" height="104" rx="8" fill="currentColor" opacity="0.04" stroke-width="1.1"/>
+      <line x1="474" y1="86" x2="482" y2="90"/><line x1="534" y1="86" x2="556" y2="98"/><line x1="594" y1="86" x2="632" y2="108"/>
+      <line x1="474" y1="126" x2="480" y2="129"/><line x1="534" y1="126" x2="552" y2="136"/><line x1="594" y1="126" x2="628" y2="146"/>
+    </g>
+    <g>
+      <rect x="660" y="52" width="208" height="104" rx="8" fill="currentColor" opacity="0.04" stroke-width="1.1"/>
+      <line x1="692" y1="82" x2="704" y2="94"/><line x1="756" y1="88" x2="742" y2="76"/><line x1="820" y1="80" x2="836" y2="92"/>
+      <line x1="692" y1="130" x2="680" y2="120"/><line x1="756" y1="126" x2="770" y2="138"/><line x1="820" y1="132" x2="806" y2="122"/>
+    </g>
+  </g>
+  <g font-family="system-ui, sans-serif" text-anchor="middle" font-size="9.5">
+    <text x="112" y="176" fill="currentColor" font-weight="700">Uniform shift</text>
+    <text x="112" y="194" fill="currentColor" opacity="0.85">geolocation offset → translate</text>
+    <text x="328" y="176" fill="currentColor" font-weight="700">Rotational</text>
+    <text x="328" y="194" fill="currentColor" opacity="0.85">orbit or attitude error</text>
+    <text x="544" y="176" fill="currentColor" font-weight="700">Scales with slope</text>
+    <text x="544" y="194" fill="currentColor" opacity="0.85">wrong elevation model</text>
+    <text x="764" y="176" fill="#f3a712" font-weight="700">No structure</text>
+    <text x="764" y="194" fill="currentColor" opacity="0.85">matching noise — not correctable</text>
+  </g>
+</svg>
+
 ## Deterministic Transformation Logic
 
 Once drift is measured and attributed to a coherent offset, the correction is deterministic: reproject both layers onto a common equal-area grid so that later area-weighted biomass sums are honest, apply the estimated shift to the SAR layer as an affine translation, and re-verify that alignment actually improved. Using an equal-area CRS such as `EPSG:6933` rather than the native UTM keeps per-pixel area constant across the tile, which matters because the fused product is ultimately integrated to tonnes. The correction is gated: it must both raise the normalised cross-correlation and clear an absolute floor, otherwise the tile is rejected rather than silently shipped with a shift that did nothing.
@@ -304,6 +345,64 @@ In production the corrective loop runs as a fixed, containerised sequence with p
 6. **Submit** — attach the signed coregistration audit record and forward the validated stack to the fusion regression and the registry submission queue.
 
 Batch execution chunks tiles through a scheduler, but the contract is per-tile so that a single drifted scene can never contaminate a neighbour. Read SAR windowed to the LiDAR footprint rather than whole-scene to keep memory bounded across thousands of tiles, and cache the measured shift alongside the tile identifier so re-runs skip re-estimation when inputs are unchanged. With this loop in place, coregistration drift stops being an invisible tax on biomass RMSE and becomes a measured, corrected, and audited property of every fused surface.
+
+<svg viewBox="0 -4 880 212" role="img" aria-labelledby="cost-t2 cost-d2" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="cost-t2">Coregistration offset against biomass model bias, by landscape heterogeneity</title>
+  <desc id="cost-d2">A chart of resulting biomass bias against coregistration offset from 0 to 30 metres, for three landscape types. In a homogeneous plantation the bias stays under 1 percent even at 30 metres, because neighbouring pixels are similar. In a mixed natural forest the bias reaches 6 percent at 20 metres. In a fragmented mosaic with small patches the bias reaches 17 percent at 20 metres and 24 percent at 30. A threshold line marks a 5 percent materiality level. A panel notes that the same offset is harmless in one landscape and disqualifying in another, so an acceptable offset must be derived from the landscape rather than adopted as a constant.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">The same offset is harmless or disqualifying, depending on the landscape</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Resulting biomass bias against coregistration offset.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1" opacity="0.22">
+    <line x1="80" y1="60" x2="560" y2="60"/><line x1="80" y1="102" x2="560" y2="102"/>
+  </g>
+  <line x1="80" y1="144" x2="560" y2="144" stroke="#f3a712" stroke-width="1.8" stroke-dasharray="5,4"/>
+  <text x="566" y="148" font-family="system-ui, sans-serif" font-size="9" font-weight="700" fill="#f3a712">5% materiality</text>
+  <g stroke="currentColor" stroke-width="1.3">
+    <line x1="80" y1="50" x2="80" y2="174"/>
+    <line x1="80" y1="174" x2="560" y2="174"/>
+  </g>
+  <g font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.72">
+    <text x="72" y="64" text-anchor="end">25%</text>
+    <text x="72" y="106" text-anchor="end">15%</text>
+    <text x="72" y="148" text-anchor="end">5%</text>
+    <text x="80" y="192" text-anchor="middle">0 m</text>
+    <text x="240" y="192" text-anchor="middle">10 m</text>
+    <text x="400" y="192" text-anchor="middle">20 m</text>
+    <text x="560" y="192" text-anchor="middle">30 m</text>
+  </g>
+  <polyline points="80,174 240,171 400,169 560,168" fill="none" stroke="currentColor" stroke-width="2.6" stroke-dasharray="7,4"/>
+  <polyline points="80,174 240,158 400,138 560,124" fill="none" stroke="currentColor" stroke-width="2.6"/>
+  <polyline points="80,174 240,132 400,102 560,72" fill="none" stroke="#f3a712" stroke-width="2.8"/>
+  <g font-family="system-ui, sans-serif" font-size="9.5" font-weight="600">
+    <text x="640" y="76" fill="#f3a712">fragmented mosaic</text>
+    <text x="640" y="128" fill="currentColor">mixed natural forest</text>
+    <text x="640" y="172" fill="currentColor" opacity="0.85">homogeneous plantation</text>
+    <text x="12" y="206" font-weight="400" fill="currentColor" opacity="0.82">Derive the acceptable offset from the landscape's structural autocorrelation length — do not adopt a constant from a paper about a different forest.</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### What coregistration offset is acceptable?
+
+It depends entirely on how heterogeneous the landscape is at the pixel scale, so it must be derived rather than adopted. In a uniform plantation a twenty-metre offset barely changes the fitted relationship, because the neighbouring pixel looks like the intended one. In a fragmented mosaic the same offset pairs a canopy measurement with a clearing and biases the model by double digits. Estimate the structural autocorrelation length for your landscape and set the tolerance from it.
+
+### How do I distinguish drift from matching noise?
+
+By the spatial structure of the residual field. Drift is structured — uniform, rotational, or correlated with terrain — and is correctable by a transform of the corresponding form. Noise has no structure and no transform will remove it; attempting to fit one produces a correction that fits the noise and makes the next scene worse. Plot the residual vectors before fitting anything, and only fit the model the pattern suggests.
+
+### Should the correction be applied to the LiDAR or the SAR?
+
+To whichever has the weaker geolocation, which is usually the SAR after terrain correction, and always to a copy rather than in place. The important discipline is to apply exactly one correction, derived once and recorded, rather than accumulating small adjustments per scene — chained corrections drift in the same way chained reprojections do, and they destroy the ability to state what transform produced a given artefact.
+
+### Does drift change over time?
+
+Often, and monitoring it is worth more than correcting it once. Orbit maintenance, processing baseline changes, and elevation model updates all shift the relationship, so a correction fitted in 2027 may be wrong in 2029. Compute the residual field on every acquisition against a stable reference and trend the fitted offset; a step in that series is a provider-side change worth knowing about before it reaches a reported figure.
+
+### What if the two sensors were acquired years apart?
+
+Then the mismatch includes real change as well as geometric offset, and separating them requires care. Restrict the coregistration fit to areas known to be stable over the interval — rock, water margins, mature undisturbed stands — and exclude anything that may have changed. Fitting on the whole scene lets genuine forest change pull the estimated offset, which then propagates a spurious geometric correction into every subsequent pairing.
 
 ## Related guides
 

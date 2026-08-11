@@ -133,6 +133,49 @@ def normalize_supplier_geometries(df: pd.DataFrame) -> gpd.GeoDataFrame:
 
 Root-cause failures at this stage stem from mixed CRS assumptions or truncated decimal precision. Diagnostic validation enforces a minimum 5-decimal precision and rejects batches with zero coordinate variance, which signal static template exports rather than live facility telemetry.
 
+<svg viewBox="0 -4 900 230" role="img" aria-labelledby="chain-t chain-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="chain-t">The calculation chain from parcel to reported tonne, with the unit at each step</title>
+  <desc id="chain-d">Six steps with explicit units. Step one, parcel geometry in an equal-area coordinate reference system, gives hectares. Step two, conversion event detection, gives hectares converted per year. Step three, carbon stock difference between pre-conversion and post-conversion land cover, gives tonnes of carbon per hectare. Step four, multiplication and the carbon-to-carbon-dioxide factor of 44 over 12, gives tonnes of carbon dioxide equivalent. Step five, amortisation across the methodology window, gives tonnes per year. Step six, apportionment share, gives the reported tonnes for this buyer. A panel notes that every arrow is a unit change and that unit errors are the most common defect because each step looks dimensionally plausible on its own.</desc>
+  <defs>
+    <marker id="chain-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+    </marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" text-anchor="middle">
+    <text x="450" y="16" fill="currentColor" font-size="11.5" font-weight="700">Every arrow is a unit change</text>
+    <text x="450" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Each step is dimensionally plausible alone, which is why unit errors survive review.</text>
+    <rect x="12" y="56" width="132" height="66" rx="8" fill="currentColor" opacity="0.08"/>
+    <rect x="12" y="56" width="132" height="66" rx="8" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <text x="78" y="80" fill="currentColor" font-size="9.5" font-weight="700">Parcel geometry</text>
+    <text x="78" y="102" fill="currentColor" font-size="10" font-weight="700">ha</text>
+    <rect x="160" y="56" width="132" height="66" rx="8" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <text x="226" y="80" fill="currentColor" font-size="9.5" font-weight="700">Conversion event</text>
+    <text x="226" y="102" fill="currentColor" font-size="10" font-weight="700">ha yr⁻¹</text>
+    <rect x="308" y="56" width="132" height="66" rx="8" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <text x="374" y="80" fill="currentColor" font-size="9.5" font-weight="700">Stock difference</text>
+    <text x="374" y="102" fill="currentColor" font-size="10" font-weight="700">t C ha⁻¹</text>
+    <rect x="456" y="56" width="132" height="66" rx="8" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <text x="522" y="80" fill="currentColor" font-size="9.5" font-weight="700">× 44/12</text>
+    <text x="522" y="102" fill="currentColor" font-size="10" font-weight="700">tCO₂e</text>
+    <rect x="604" y="56" width="132" height="66" rx="8" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <text x="670" y="80" fill="currentColor" font-size="9.5" font-weight="700">Amortisation</text>
+    <text x="670" y="102" fill="currentColor" font-size="10" font-weight="700">tCO₂e yr⁻¹</text>
+    <rect x="752" y="56" width="136" height="66" rx="8" fill="currentColor" opacity="0.12"/>
+    <rect x="752" y="56" width="136" height="66" rx="8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <text x="820" y="80" fill="currentColor" font-size="9.5" font-weight="700">× share</text>
+    <text x="820" y="102" fill="currentColor" font-size="10" font-weight="700">reported tCO₂e</text>
+    <rect x="12" y="152" width="876" height="66" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="12" y="152" width="876" height="66" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="450" y="176" fill="currentColor" font-size="10" font-weight="700">Declare the unit on every column and assert it at every boundary.</text>
+    <text x="450" y="198" fill="currentColor" font-size="9.5" opacity="0.85">A tonne of carbon silently reported as a tonne of CO₂e understates by a factor of 3.67 — and looks entirely reasonable.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1.4" fill="none" marker-end="url(#chain-arrow)">
+    <line x1="144" y1="89" x2="158" y2="89"/><line x1="292" y1="89" x2="306" y2="89"/>
+    <line x1="440" y1="89" x2="454" y2="89"/><line x1="588" y1="89" x2="602" y2="89"/>
+    <line x1="736" y1="89" x2="750" y2="89"/>
+  </g>
+</svg>
+
 ## Deterministic Transformation Logic
 
 With clean, CRS-declared inputs, the transformation stage projects geometries for distance and area work, then joins them to emission-factor surfaces. Two patterns make this deterministic: a single-pass projection with cached transformers, and explicit `always_xy=True` axis enforcement.
@@ -301,6 +344,73 @@ For batch and chunked I/O at scale, keep these constraints in view:
 - **Compliance mapping.** Align DQ scoring directly to GHG Protocol Scope 3 §5.3 and document every fallback assumption in the MRV methodology statement.
 
 The [GHG Protocol Corporate Value Chain (Scope 3) Standard](https://ghgprotocol.org/corporate-value-chain-scope-3-standard) requires a documented methodology for spatially explicit activity data, and the [OGC Well-Known Text CRS Representation](https://www.ogc.org/standards/wkt-crs) standard provides the canonical encoding for the coordinate-system declarations auditors request. This architecture eliminates macroeconomic averaging artifacts, enforces spatial determinism, and produces verifiable audit trails suitable for third-party assurance — provided CRS transformations and EF grid updates are themselves CI/CD-validated.
+
+<svg viewBox="0 -4 880 226" role="img" aria-labelledby="amort-t amort-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="amort-t">Amortising a land-use-change event across a twenty-year window</title>
+  <desc id="amort-d">A bar chart of annual reported emissions from a single conversion event of 2400 tonnes of carbon dioxide equivalent occurring in 2024. Under a twenty-year linear amortisation, each year from 2024 to 2043 carries 120 tonnes. A second series shows what happens when the event is instead assigned wholly to the year of conversion: a single 2400 tonne spike in 2024 and zero thereafter. An annotation states that both are internally consistent, that the methodology chooses, and that a supplier changing hands mid-window makes the difference material because the remaining amortised years follow the sourcing relationship rather than the event.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">One conversion event, two reporting profiles</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">2 400 tCO₂e converted in 2024. The methodology decides how it lands in the years.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1.3">
+    <line x1="70" y1="52" x2="70" y2="168"/>
+    <line x1="70" y1="168" x2="700" y2="168"/>
+  </g>
+  <g font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.72">
+    <text x="62" y="60" text-anchor="end">2 400</text>
+    <text x="62" y="112" text-anchor="end">1 200</text>
+    <text x="62" y="172" text-anchor="end">0</text>
+    <text x="86" y="188" text-anchor="middle">2024</text>
+    <text x="300" y="188" text-anchor="middle">2030</text>
+    <text x="550" y="188" text-anchor="middle">2038</text>
+    <text x="690" y="188" text-anchor="middle">2043</text>
+  </g>
+  <rect x="78" y="56" width="18" height="112" fill="#f3a712" opacity="0.42"/>
+  <text x="106" y="70" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="#f3a712">whole event in 2024</text>
+  <g fill="currentColor" opacity="0.3">
+    <rect x="100" y="162" width="18" height="6"/><rect x="132" y="162" width="18" height="6"/><rect x="164" y="162" width="18" height="6"/>
+    <rect x="196" y="162" width="18" height="6"/><rect x="228" y="162" width="18" height="6"/><rect x="260" y="162" width="18" height="6"/>
+    <rect x="292" y="162" width="18" height="6"/><rect x="324" y="162" width="18" height="6"/><rect x="356" y="162" width="18" height="6"/>
+    <rect x="388" y="162" width="18" height="6"/><rect x="420" y="162" width="18" height="6"/><rect x="452" y="162" width="18" height="6"/>
+    <rect x="484" y="162" width="18" height="6"/><rect x="516" y="162" width="18" height="6"/><rect x="548" y="162" width="18" height="6"/>
+    <rect x="580" y="162" width="18" height="6"/><rect x="612" y="162" width="18" height="6"/><rect x="644" y="162" width="18" height="6"/>
+    <rect x="676" y="162" width="18" height="6"/>
+  </g>
+  <text x="300" y="152" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">20-year amortisation · 120 tCO₂e yr⁻¹</text>
+  <g font-family="system-ui, sans-serif">
+    <rect x="716" y="52" width="152" height="116" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="716" y="52" width="152" height="116" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="732" y="76" fill="currentColor" font-size="9.5" font-weight="700">Why it matters</text>
+    <text x="732" y="98" fill="currentColor" font-size="9" opacity="0.85">A supplier changing</text>
+    <text x="732" y="112" fill="currentColor" font-size="9" opacity="0.85">hands mid-window takes</text>
+    <text x="732" y="126" fill="currentColor" font-size="9" opacity="0.85">the remaining years with</text>
+    <text x="732" y="140" fill="currentColor" font-size="9" opacity="0.85">the relationship, not with</text>
+    <text x="732" y="154" fill="currentColor" font-size="9" opacity="0.85">the event.</text>
+  </g>
+  <text x="12" y="212" font-family="system-ui, sans-serif" font-size="9.5" fill="currentColor" opacity="0.82">Store the dated conversion event as the fact and derive the annual figure — then a methodology change re-derives instead of requiring re-analysis.</text>
+</svg>
+
+## Frequently Asked Questions
+
+### Where do unit errors most often enter this calculation?
+
+At the carbon-to-carbon-dioxide conversion and at the area denominator. Stock factors are published variously as tonnes of carbon per hectare and tonnes of CO₂e per hectare, and the two differ by 3.67 — a factor large enough to be obvious in a total and small enough to be missed in a per-parcel figure. The defence is to declare a unit on every column, carry it into the Parquet footer, and assert it at every stage boundary rather than relying on a naming convention.
+
+### Should conversion events be detected or supplied?
+
+Both, reconciled. Supplier-declared conversion dates are authoritative where they exist and are frequently absent, incomplete, or optimistic. Satellite-detected conversion gives independent, dated evidence over the whole sourcing area. Run both, compare, and treat a disagreement as a finding rather than choosing one silently — a declared date that postdates the observed conversion is exactly the discrepancy a verifier is looking for.
+
+### How is the amortisation window chosen?
+
+By the methodology, not by the engineer. Twenty years is common for land-use change under several frameworks, but the number, the shape (linear or otherwise), and whether the clock starts at conversion or at first sourcing all vary. Store the dated event as the underlying fact and compute the annual figure as a derived quantity, so a methodology change re-derives cleanly across the whole history rather than requiring the analysis to be rebuilt.
+
+### What if a parcel converts partway through a reporting year?
+
+Apportion within the year by the fraction of the period the converted state applies, and record the conversion date on the row. Assigning the whole year on either side of the boundary introduces an error that is small per parcel and systematic across a portfolio, since conversions cluster in a season. Sub-annual apportionment costs one extra column and removes the systematic component.
+
+### How do I reconcile this figure against a supplier's own disclosure?
+
+By aligning three things before comparing numbers: the boundary (are you both counting the same parcels), the consolidation rule, and the amortisation treatment. Most apparent discrepancies between a buyer's spatial estimate and a supplier's disclosure dissolve once those three are matched, and the residual is the genuinely interesting part. Publishing your boundary and rule alongside the figure makes that reconciliation possible rather than adversarial.
 
 ## Related
 

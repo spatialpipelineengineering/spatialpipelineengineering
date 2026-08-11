@@ -165,6 +165,44 @@ def preflight_project(
 
 A run that reports `ready=False` never proceeds to area accounting; the failure is surfaced to the operator with the specific unmet clause so it maps back to a line in the checklist rather than a generic error. This mirrors the diagnostic discipline used across the [Pipeline Orchestration & Compliance Reference](https://www.spatialpipelineengineering.org/pipeline-orchestration-compliance-reference/) stack.
 
+<svg viewBox="0 -4 900 224" role="img" aria-labelledby="mmu-t mmu-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="mmu-t">Minimum mapping unit and what it removes from a real project boundary</title>
+  <desc id="mmu-d">The same fragmented project area evaluated under two minimum mapping units. At a 0.1 hectare threshold, 1 284 patches qualify and the eligible area is 4 812 hectares. At a 1 hectare threshold, 706 patches qualify and the eligible area falls to 4 388 hectares, a reduction of 8.8 percent, because the excluded small patches are numerous but individually tiny. A panel notes that the threshold is a methodology parameter rather than an engineering preference, that it must be applied in an equal-area projection, and that patches excluded by it must still be reported so the difference between mapped and eligible area is visible.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">The minimum mapping unit removes 8.8% of a real boundary</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Same fragmented project area, two thresholds.</text>
+    <rect x="12" y="52" width="424" height="140" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="12" y="52" width="424" height="140" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="28" y="76" fill="currentColor" font-size="10.5" font-weight="700">MMU 0.1 ha</text>
+    <text x="28" y="106" fill="currentColor" font-size="14" font-weight="700">1 284 patches</text>
+    <text x="28" y="132" fill="currentColor" font-size="14" font-weight="700">4 812 ha eligible</text>
+    <text x="28" y="160" fill="currentColor" font-size="9.5" opacity="0.82">many tiny fragments qualify</text>
+    <text x="28" y="178" fill="currentColor" font-size="9.5" opacity="0.82">higher monitoring burden per hectare</text>
+    <rect x="456" y="52" width="432" height="140" rx="9" fill="currentColor" opacity="0.07"/>
+    <rect x="456" y="52" width="432" height="140" rx="9" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="472" y="76" fill="currentColor" font-size="10.5" font-weight="700">MMU 1 ha</text>
+    <text x="472" y="106" fill="currentColor" font-size="14" font-weight="700">706 patches</text>
+    <text x="472" y="132" fill="#f3a712" font-size="14" font-weight="700">4 388 ha eligible · −8.8%</text>
+    <text x="472" y="160" fill="currentColor" font-size="9.5" opacity="0.82">fragments numerous but individually tiny</text>
+    <text x="472" y="178" fill="currentColor" font-size="9.5" opacity="0.82">excluded area must still be reported</text>
+  </g>
+  <g>
+    <rect x="300" y="66" width="120" height="112" rx="6" fill="none" stroke="currentColor" stroke-width="1" opacity="0.5"/>
+    <rect x="312" y="78" width="34" height="26" fill="currentColor" opacity="0.3"/>
+    <rect x="356" y="86" width="28" height="22" fill="currentColor" opacity="0.3"/>
+    <rect x="318" y="116" width="40" height="30" fill="currentColor" opacity="0.3"/>
+    <rect x="368" y="122" width="24" height="20" fill="currentColor" opacity="0.3"/>
+    <rect x="392" y="82" width="8" height="7" fill="#f3a712"/><rect x="348" y="112" width="6" height="6" fill="#f3a712"/>
+    <rect x="308" y="154" width="7" height="6" fill="#f3a712"/><rect x="380" y="156" width="6" height="7" fill="#f3a712"/>
+    <rect x="330" y="70" width="6" height="6" fill="#f3a712"/><rect x="398" y="146" width="7" height="6" fill="#f3a712"/>
+    <rect x="748" y="66" width="120" height="112" rx="6" fill="none" stroke="currentColor" stroke-width="1" opacity="0.5"/>
+    <rect x="760" y="78" width="34" height="26" fill="currentColor" opacity="0.3"/>
+    <rect x="804" y="86" width="28" height="22" fill="currentColor" opacity="0.3"/>
+    <rect x="766" y="116" width="40" height="30" fill="currentColor" opacity="0.3"/>
+    <rect x="816" y="122" width="24" height="20" fill="currentColor" opacity="0.3"/>
+  </g>
+</svg>
+
 ## Deterministic Transformation Logic
 
 The transformation stage produces the two numeric primitives every registry consumes — stratified area estimates and an uncertainty deduction — parameterized by standard. The stratifier is an abstraction with two backends: a pixel-level covariate stratifier for VM0047 and a plot-anchored stratifier for Gold Standard. The uncertainty deduction is a pure function of the aggregated confidence interval and the standard's deduction schedule, so the same estimate yields a VM0047-conservative and a Gold-Standard-conservative number without re-deriving the areas. Every geometry passes through an explicit equal-area reprojection gate before its area is trusted.
@@ -294,6 +332,71 @@ Deploy the components in a fixed sequence that lets a single orchestration targe
 6. **Submit.** Run `gate_evidence_package`, then forward the tagged bundle through the [Carbon Credit Registry Data Integration](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/carbon-credit-registry-data-integration/) layer to Verra or Gold Standard.
 
 By pushing everything registry-specific into configuration around the three shared primitives — stratified area, uncertainty deduction, and lineage manifest — a team can quote a project under VM0047 and Gold Standard from one run, choose the registry on the economics rather than the engineering, and switch later without a rewrite. That is the practical payoff of treating the two standards as parameters of a single spatial MRV pipeline instead of two pipelines that happen to share a data lake.
+
+<svg viewBox="0 -4 880 226" role="img" aria-labelledby="ded2-t ded2-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="ded2-t">Uncertainty deduction schedules compared across two standards</title>
+  <desc id="ded2-d">A step chart of the fraction of an estimate withheld as the relative 95 percent confidence half-width rises from 0 to 50 percent. One schedule steps at 10, 15, 20 and 30 percent uncertainty with deductions of 0, 4, 8 and 15 percent respectively, reaching 25 percent above 30. The other schedule steps earlier and more steeply, reaching a 20 percent deduction by 20 percent uncertainty. A marked point shows a project at 22 percent relative uncertainty receiving an 8 percent deduction under the first schedule and 20 percent under the second, a difference of 12 percentage points of issuance on identical measurements.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Identical measurements, 12 points of issuance apart</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Deduction withheld against relative 95% CI half-width.</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1" opacity="0.22">
+    <line x1="80" y1="66" x2="620" y2="66"/><line x1="80" y1="110" x2="620" y2="110"/><line x1="80" y1="154" x2="620" y2="154"/>
+  </g>
+  <g stroke="currentColor" stroke-width="1.3">
+    <line x1="80" y1="56" x2="80" y2="184"/>
+    <line x1="80" y1="184" x2="620" y2="184"/>
+  </g>
+  <g font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.72">
+    <text x="72" y="70" text-anchor="end">30%</text>
+    <text x="72" y="114" text-anchor="end">20%</text>
+    <text x="72" y="158" text-anchor="end">10%</text>
+    <text x="72" y="188" text-anchor="end">0</text>
+    <text x="80" y="204" text-anchor="middle">0</text>
+    <text x="188" y="204" text-anchor="middle">10%</text>
+    <text x="296" y="204" text-anchor="middle">20%</text>
+    <text x="404" y="204" text-anchor="middle">30%</text>
+    <text x="620" y="204" text-anchor="middle">50%</text>
+    <text x="350" y="220" text-anchor="middle" font-weight="600">relative 95% CI half-width</text>
+  </g>
+  <polyline points="80,184 188,184 188,166 242,166 242,149 296,149 296,118 404,118 404,74 620,74" fill="none" stroke="currentColor" stroke-width="2.6"/>
+  <polyline points="80,184 134,184 134,158 188,158 188,131 242,131 242,110 296,110 296,79 404,79 404,66 620,66" fill="none" stroke="#f3a712" stroke-width="2.4" stroke-dasharray="7,4"/>
+  <circle cx="318" cy="149" r="6" fill="none" stroke="currentColor" stroke-width="2.2"/>
+  <circle cx="318" cy="110" r="6" fill="none" stroke="#f3a712" stroke-width="2.4"/>
+  <g font-family="system-ui, sans-serif" font-size="9.5">
+    <text x="632" y="78" fill="currentColor" font-weight="600">schedule A</text>
+    <text x="632" y="62" fill="#f3a712" font-weight="600">schedule B</text>
+    <text x="330" y="146" fill="currentColor" font-weight="700">8%</text>
+    <text x="330" y="106" fill="#f3a712" font-weight="700">20%</text>
+    <rect x="644" y="112" width="224" height="76" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="644" y="112" width="224" height="76" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="660" y="134" fill="currentColor" font-size="9.5" font-weight="700">At 22% uncertainty</text>
+    <text x="660" y="156" fill="currentColor" font-size="9.5" opacity="0.85">the same project keeps 92% or 80%</text>
+    <text x="660" y="174" fill="currentColor" font-size="9.5" opacity="0.85">of its estimate, depending only on standard.</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### Which differences actually change the pipeline rather than the paperwork?
+
+Four: the minimum mapping unit, the permitted projection or areal-accuracy requirement, the uncertainty propagation method, and the deduction schedule. Each of those changes a number rather than a document, so each must be a parameter the pipeline reads rather than an assumption it embeds. Everything else — evidence package contents, submission format, review cadence — is real work but sits outside the calculation.
+
+### Can a project be prepared for both standards from one pipeline?
+
+Yes, and it is worth doing when the standard is not yet chosen. Compute on the strictest common geometry — the smallest permitted minimum mapping unit and the tightest areal accuracy — then apply each standard's aggregation and deduction as a final parameterised step. Preparing at the loosest setting and trying to tighten later means re-running the geometry stage, which is the expensive part.
+
+### How should the uncertainty deduction be implemented?
+
+As a versioned lookup keyed on the relative confidence half-width, not as a formula inline in the calculation. The schedules are step functions defined by the methodology and revised occasionally, so a table with an effective date is both easier to audit and easier to change. Record which schedule version applied to each issuance, because a schedule revision is a restatement trigger for anything recomputed under it.
+
+### What does each standard actually want in the evidence package?
+
+Broadly the same categories — boundary geometry with its accuracy statement, the measurement method with its validation, the uncertainty analysis, and the monitoring plan — with different formats and different levels of prescription about each. The practical approach is to generate a canonical evidence bundle from the pipeline and render standard-specific views from it, rather than assembling each package by hand from the same underlying facts.
+
+### Does the choice of standard affect monitoring frequency?
+
+Yes, and it interacts with the minimum mapping unit in a way that surprises teams. A smaller minimum mapping unit means more, smaller patches to monitor, and several methodologies scale monitoring intensity with patch count rather than with area. A threshold chosen to maximise eligible area can therefore multiply the ongoing monitoring burden, which is worth modelling before validation rather than discovering at the first monitoring period.
 
 ## Related guides
 

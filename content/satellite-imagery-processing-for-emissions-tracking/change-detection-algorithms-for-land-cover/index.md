@@ -115,6 +115,43 @@ Three failure modes account for the overwhelming majority of rejected change pro
 
 3. **Insufficient clear observations destabilizing time-series fits.** The root cause is fitting a harmonic-plus-trend or CCDC model to a pixel whose clear-observation count is too low to constrain the parameters, so the model overfits the few points it has and reports breaks driven by noise rather than signal. Persistent cloud, seasonal haze, or a short archive starves the fit. The impact is both a precision collapse and a silent bias: in pixels below roughly 12&#8211;16 clear observations per fitting window, false-break rates rise sharply and detected-change dates scatter by months, while the pixels most affected — persistently cloudy tropical forest, exactly the highest-carbon biomes — are the ones where accuracy matters most. Unlike the first two modes, this one is invisible without an explicit observation-count gate, because the model returns a confident-looking result regardless of how little it had to work with.
 
+<svg viewBox="0 -4 900 232" role="img" aria-labelledby="cd-t cd-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="cd-t">Change signatures and the algorithm family each one needs</title>
+  <desc id="cd-d">Four change signatures drawn as index-over-time sketches. An abrupt single-date drop that persists, typical of clearing or fire, is detected by bi-temporal differencing or a sequential test. A gradual multi-year decline, typical of degradation or drought, requires a trend-fitting method such as a segmented trajectory. A seasonal amplitude change with no level shift, typical of a cropping change, requires a harmonic model that separates phase from level. A recovery after disturbance requires a segmentation method that can fit multiple segments rather than a single break. A panel notes that a pipeline using one algorithm sees only the change it was built for, and that the others do not appear as weak detections — they do not appear at all.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Four change shapes; one algorithm sees one of them</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">The others do not appear weakly — they do not appear.</text>
+  </g>
+  <g>
+    <rect x="12" y="52" width="212" height="106" rx="8" fill="currentColor" opacity="0.05"/>
+    <rect x="12" y="52" width="212" height="106" rx="8" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <polyline points="28,88 62,84 96,90 118,86 118,138 152,140 186,136 208,139" fill="none" stroke="currentColor" stroke-width="2.4"/>
+    <rect x="236" y="52" width="212" height="106" rx="8" fill="currentColor" opacity="0.05"/>
+    <rect x="236" y="52" width="212" height="106" rx="8" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <polyline points="252,84 286,90 320,98 354,110 388,122 422,132 432,138" fill="none" stroke="currentColor" stroke-width="2.4"/>
+    <rect x="460" y="52" width="212" height="106" rx="8" fill="currentColor" opacity="0.05"/>
+    <rect x="460" y="52" width="212" height="106" rx="8" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <polyline points="476,110 494,86 512,110 530,86 548,110 566,96 584,116 602,96 620,116 638,100 656,112" fill="none" stroke="currentColor" stroke-width="2.4"/>
+    <rect x="684" y="52" width="204" height="106" rx="8" fill="currentColor" opacity="0.05"/>
+    <rect x="684" y="52" width="204" height="106" rx="8" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <polyline points="700,86 730,84 748,84 748,140 776,132 806,118 836,104 872,94" fill="none" stroke="currentColor" stroke-width="2.4"/>
+  </g>
+  <g font-family="system-ui, sans-serif" text-anchor="middle">
+    <text x="118" y="180" fill="currentColor" font-size="10" font-weight="700">Abrupt, persistent</text>
+    <text x="118" y="198" fill="currentColor" font-size="9" opacity="0.8">clearing · fire</text>
+    <text x="118" y="216" fill="currentColor" font-size="9" opacity="0.85">bi-temporal or sequential test</text>
+    <text x="342" y="180" fill="currentColor" font-size="10" font-weight="700">Gradual decline</text>
+    <text x="342" y="198" fill="currentColor" font-size="9" opacity="0.8">degradation · drought</text>
+    <text x="342" y="216" fill="currentColor" font-size="9" opacity="0.85">segmented trajectory fit</text>
+    <text x="566" y="180" fill="currentColor" font-size="10" font-weight="700">Amplitude change only</text>
+    <text x="566" y="198" fill="currentColor" font-size="9" opacity="0.8">cropping change</text>
+    <text x="566" y="216" fill="currentColor" font-size="9" opacity="0.85">harmonic model, phase vs level</text>
+    <text x="786" y="180" fill="currentColor" font-size="10" font-weight="700">Disturb then recover</text>
+    <text x="786" y="198" fill="currentColor" font-size="9" opacity="0.8">salvage · regrowth</text>
+    <text x="786" y="216" fill="#f3a712" font-size="9" font-weight="700">multi-segment, not one break</text>
+  </g>
+</svg>
+
 ## Deterministic Implementation Architecture
 
 The reference implementation below detects change per pixel over an `xarray` time series of a spectral index (NDVI or NBR). It fits a robust harmonic-plus-trend model to a stable history window, then tests the standardized residuals of the monitoring period against a control limit to flag a breakpoint — the deterministic core shared, in richer form, by BFAST and CCDC. The function refuses untagged geometry, honours nodata, enforces a minimum clear-observation gate before any fit, and emits structured telemetry so every decision is reconstructable. It does not attempt a full continuous model; the dedicated per-pixel continuous implementation is the subject of the child guide linked in the conclusion.
@@ -271,6 +308,50 @@ A change product becomes a submission artifact only when its outputs map to name
 Validation follows the good-practice guidance codified in the IPCC approach to land-representation and the accuracy-assessment literature: draw a probability sample of the change and no-change strata, collect reference labels independent of the algorithm, and report area with a confidence interval derived from the sample rather than from a pixel count. Pixel-counted area is biased whenever map accuracy is imperfect, and the bias is exactly what an auditor will test; the sample-based estimator with its variance is the defensible figure, which is why the implementation carries `n_clear_obs` and `magnitude` forward — they stratify the sample and weight the estimate. For debugging, treat the gated-pixel fraction, the changed-pixel fraction, and the distribution of break magnitudes as monitored signals on every run, including the passing ones, so a drifting cross-sensor offset or a thinning archive shows up as a trend long before it breaches a single-run tolerance.
 
 The compliance mapping is concrete. Under **ISO 14064-3**, the change product must be reproducible and its uncertainty quantified; the method attribution, control-limit parameters, and sample-based area confidence interval together satisfy the verifier's reproducibility and conservativeness tests, and the recorded observation count documents the fitness of the underlying data. Under the **Verra VM-series** — VM0047 for afforestation, reforestation and revegetation, VM0048 and the REDD framework for avoided conversion — detected change is the activity data to which stratified emission factors are applied, and the methodologies require explicit uncertainty deductions when detection or area accuracy falls below threshold; exporting the confidence interval and the gated fraction lets the platform apply those deductions per stratum. Under **CSRD ESRS E1**, land-use-change disclosures must be traceable and their estimation uncertainty transparent, which the dated, method-attributed, uncertainty-bounded event record delivers directly. Each of these controls is a downstream consumer of a field the function already emits, which is what keeps the change map inside the audit boundary rather than adjacent to it.
+
+<svg viewBox="0 -4 880 224" role="img" aria-labelledby="acc-t acc-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="acc-t">Why an accuracy assessment must be area-weighted for a rare class</title>
+  <desc id="acc-d">A comparison for a landscape where change affects 2 percent of pixels. A simple-random accuracy assessment reports 97.6 percent overall accuracy, which is achievable by predicting no change everywhere and says almost nothing about the class of interest. A stratified estimator with area weights reports the change class user's accuracy at 71 percent and producer's accuracy at 64 percent, with an area estimate and a confidence interval. A panel notes that overall accuracy is dominated by the majority class, that registries and methodologies require the stratified area estimate, and that reporting overall accuracy for a rare class is at best uninformative.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Overall accuracy is the wrong number for a 2% class</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Same map, two assessment designs.</text>
+    <rect x="12" y="52" width="424" height="140" rx="9" fill="none" stroke="#f3a712" stroke-width="1.9" stroke-dasharray="6,3"/>
+    <text x="28" y="76" fill="currentColor" font-size="10.5" font-weight="700">Simple random sample</text>
+    <text x="28" y="108" fill="currentColor" font-size="20" font-weight="700">97.6%</text>
+    <text x="28" y="130" fill="currentColor" font-size="9.5" opacity="0.85">overall accuracy</text>
+    <text x="28" y="158" fill="#f3a712" font-size="9.5" font-weight="700">achievable by predicting “no change” everywhere</text>
+    <text x="28" y="178" fill="currentColor" font-size="9.5" opacity="0.85">says nothing about the class you care about</text>
+    <rect x="456" y="52" width="412" height="140" rx="9" fill="currentColor" opacity="0.12"/>
+    <rect x="456" y="52" width="412" height="140" rx="9" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <text x="472" y="76" fill="currentColor" font-size="10.5" font-weight="700">Stratified, area-weighted</text>
+    <text x="472" y="104" fill="currentColor" font-size="13" font-weight="700">user's 71% · producer's 64%</text>
+    <text x="472" y="130" fill="currentColor" font-size="13" font-weight="700">area 41 200 ± 6 900 ha</text>
+    <text x="472" y="158" fill="currentColor" font-size="9.5" opacity="0.85">an estimate with an interval, per class</text>
+    <text x="472" y="178" fill="currentColor" font-size="9.5" font-weight="700">what methodologies actually require</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### How do I choose a change-detection algorithm?
+
+By the shape of the change you need to detect and the density of observations you have. Abrupt, persistent clearing is detectable with a sequential test on a modest series; gradual degradation needs a trajectory fit and several years of data; a cropping change with no level shift needs a harmonic model. Running one algorithm and calling the result "change" means the other shapes are absent from your output entirely, which is a coverage gap rather than a sensitivity setting.
+
+### What accuracy metric should be reported?
+
+A stratified, area-weighted estimate per class with a confidence interval, not overall accuracy. When change affects a few per cent of the landscape, overall accuracy is dominated by the unchanged majority and is achievable by predicting nothing at all. Report user's and producer's accuracy for the change class and an area estimate with its interval; that is what methodologies require and what a verifier can actually use.
+
+### How many observations does a per-pixel time-series method need?
+
+Enough to fit its model plus enough to detect a break against it — in practice at least two dozen clear observations per year for a harmonic fit with two harmonics, and more where seasonality is strong. Below that the fit becomes unstable and the method reports breaks that are artefacts of an under-constrained model. Compute the clear-observation count per pixel and record where the method could not run, rather than letting it produce confident output on insufficient data.
+
+### Should change detection run on indices or on reflectance?
+
+Indices for interpretability and robustness, reflectance where the method genuinely needs the spectral detail. Indices like NBR and NDVI compress the signal into something with a physical reading and are less sensitive to residual atmospheric effects; multi-band methods can detect changes that no single index captures, at the cost of more parameters and more sensitivity to calibration differences. Many production pipelines run an index-based detector and use a multi-band check only on candidates.
+
+### How do I stop a sensor change from being reported as land-cover change?
+
+Harmonise before detecting, and segment the model at known breaks. A new sensor, a new processing baseline, or a change in atmospheric correction shifts the index distribution across the whole scene on one date — which is also the signature that identifies it, since real change never affects every pixel simultaneously. Keep a list of known break dates as configuration, refit segments across them, and assert that no detection date coincides with one.
 
 ## Conclusion
 

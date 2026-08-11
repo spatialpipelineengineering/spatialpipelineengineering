@@ -13,8 +13,9 @@
     <meta name="description" content="{{ metaDesc }}" />
     <link rel="canonical" href="{{ canonical }}" />
 
-    <meta name="theme-color" content="{{ site.themeColor }}" />
-    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="{{ site.themeColor }}" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0c1512" media="(prefers-color-scheme: dark)" />
+    <meta name="color-scheme" content="light dark" />
     <meta name="robots" content="index, follow, max-image-preview:large" />
 
     <!-- Open Graph / Twitter -->
@@ -44,6 +45,17 @@
     <meta name="apple-mobile-web-app-title" content="{{ site.name }}" />
     <meta name="application-name" content="{{ site.name }}" />
 
+    <!-- Stamp the stored choice before first paint so a dark-mode reader never
+         gets a white flash. With no stored choice the attribute stays off and
+         the stylesheet's prefers-color-scheme rules follow the OS. -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("spe-theme");
+          if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+        } catch (e) {}
+      })();
+    </script>
     <link rel="stylesheet" href="/assets/css/style.css?v={{ assets.v }}" />
     {% if hasMath %}<link rel="stylesheet" href="/assets/vendor/katex/katex.min.css" />{% endif %}
 
@@ -81,6 +93,10 @@
           <img class="brand__logo" src="/assets/img/logo.svg" width="38" height="38" alt="" />
           <span class="brand__name">{{ site.name }}<small>MRV Automation</small></span>
         </a>
+
+        <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch to dark theme" title="Switch colour theme">
+          {{ icon("sun") }}{{ icon("moon") }}
+        </button>
 
         <button class="nav-toggle" aria-controls="primary-nav" aria-expanded="false" aria-label="Toggle navigation">
           {{ icon("menu") }}

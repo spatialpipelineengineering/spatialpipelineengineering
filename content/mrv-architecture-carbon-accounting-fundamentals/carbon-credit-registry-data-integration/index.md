@@ -4,7 +4,7 @@ Carbon Credit Registry Data Integration is the ingestion and harmonization sub-s
 
 Because registry geometries are consumed by every downstream calculation, this stage is tightly coupled to its sibling sub-systems: it depends on deterministic [CRS alignment](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/geospatial-coordinate-reference-systems-crs-alignment/) to make project polygons mathematically comparable, and it feeds geographically tagged removals and avoidances into [GHG Protocol Scope 3 spatial mapping](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/ghg-protocol-scope-3-spatial-mapping/) so that credits land in the correct value-chain category. Every transformation it performs must be recorded for [MRV data lineage and provenance tracking](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/mrv-data-lineage-provenance-tracking/), because a registry record with no traceable spatial history is a record an auditor can reject.
 
-<svg viewBox="0 0 880 200" role="img" aria-label="Five-stage registry integration pipeline. Heterogeneous registry sources feed an ingest-and-hash stage, then spatial harmonization, then temporal reconciliation, producing a verification-ready dataset carrying compliance metadata and lineage." xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:880px;display:block;margin:1.5rem auto;">
+<svg viewBox="-2 34 884 142" role="img" aria-label="Five-stage registry integration pipeline. Heterogeneous registry sources feed an ingest-and-hash stage, then spatial harmonization, then temporal reconciliation, producing a verification-ready dataset carrying compliance metadata and lineage." xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:880px;display:block;margin:1.5rem auto;">
   <title>Carbon registry integration pipeline</title>
   <desc>A left-to-right pipeline of five stages: registry sources, ingest and hash, spatial harmonization, temporal reconciliation, and a verification-ready output dataset.</desc>
   <defs>
@@ -126,6 +126,44 @@ Three failure modes dominate production registry integration. Each has a concret
   <text x="380" y="240" text-anchor="middle" font-size="8.5" font-weight="600" fill="currentColor" opacity="0.7">fail</text>
   <line x1="330" y1="372" x2="429" y2="372" stroke="currentColor" stroke-width="1.4" stroke-dasharray="4,3" marker-end="url(#ccr-tree-arrow)"/>
   <text x="380" y="364" text-anchor="middle" font-size="8.5" font-weight="600" fill="currentColor" opacity="0.7">fail</text>
+</svg>
+
+<svg viewBox="0 -4 900 258" role="img" aria-labelledby="reg-t reg-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="reg-t">Why a snapshot-only ingest keeps counting credits the registry has already cancelled</title>
+  <desc id="reg-d">Two timelines over four monthly registry pulls. The upper timeline, incremental ingest, fetches only records created since the last pull, so a project whose status changed from active to cancelled in month three is never revisited and remains countable, leaving 84 thousand tonnes of carbon dioxide equivalent wrongly in the inventory. The lower timeline, full reconciliation, re-reads the complete project set each pull and diffs it against the local state, detecting the status change in month three and retiring the affected volume the same day. An annotation states that the cost difference is one extra full pull per period and the correctness difference is the entire cancelled volume.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">A cancellation is a change to an OLD record</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">Incremental ingest asks "what is new". Registries also change what is old.</text>
+    <text x="12" y="66" fill="currentColor" font-size="10" font-weight="700">Incremental ingest</text>
+    <text x="12" y="82" fill="currentColor" font-size="9" opacity="0.7">new records only</text>
+  </g>
+  <g>
+    <line x1="196" y1="76" x2="700" y2="76" stroke="currentColor" stroke-width="1.2" opacity="0.4"/>
+    <circle cx="196" cy="76" r="6" fill="currentColor" opacity="0.5"/><circle cx="364" cy="76" r="6" fill="currentColor" opacity="0.5"/>
+    <circle cx="532" cy="76" r="6" fill="currentColor" opacity="0.5"/><circle cx="700" cy="76" r="6" fill="currentColor" opacity="0.5"/>
+    <line x1="532" y1="52" x2="532" y2="96" stroke="#f3a712" stroke-width="1.6" stroke-dasharray="4,3"/>
+    <text x="544" y="58" font-family="system-ui, sans-serif" font-size="9" font-weight="700" fill="#f3a712">status → cancelled</text>
+    <text x="716" y="80" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="#f3a712">never seen</text>
+    <text x="716" y="96" font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.78">84 ktCO₂e still counted</text>
+  </g>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="160" fill="currentColor" font-size="10" font-weight="700">Full reconciliation</text>
+    <text x="12" y="176" fill="currentColor" font-size="9" opacity="0.7">re-read + diff each pull</text>
+  </g>
+  <g>
+    <line x1="196" y1="170" x2="700" y2="170" stroke="currentColor" stroke-width="1.2" opacity="0.4"/>
+    <circle cx="196" cy="170" r="7" fill="currentColor"/><circle cx="364" cy="170" r="7" fill="currentColor"/>
+    <circle cx="532" cy="170" r="8" fill="none" stroke="#f3a712" stroke-width="2.6"/><circle cx="700" cy="170" r="7" fill="currentColor"/>
+    <text x="544" y="192" font-family="system-ui, sans-serif" font-size="9" font-weight="700" fill="#f3a712">diff detects it</text>
+    <text x="716" y="174" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">retired same day</text>
+    <text x="716" y="190" font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.78">inventory stays true</text>
+  </g>
+  <g font-family="system-ui, sans-serif">
+    <rect x="12" y="212" width="876" height="42" rx="8" fill="currentColor" opacity="0.06"/>
+    <rect x="12" y="212" width="876" height="42" rx="8" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="28" y="230" fill="currentColor" font-size="9.5" font-weight="700">Cost difference: one extra full pull per period.</text>
+    <text x="28" y="246" fill="currentColor" font-size="9.5" opacity="0.82">Correctness difference: the entire cancelled volume, for as long as nobody checks.</text>
+  </g>
 </svg>
 
 ## Deterministic Implementation Architecture
@@ -299,6 +337,79 @@ Each structured log field the pipeline emits maps to a specific clause an audito
 </div>
 
 When debugging, the first move is always to diff two payload hashes rather than two record sets — a changed hash with an unchanged record count points at silent schema drift, while an unchanged hash with diverging downstream numbers points at non-determinism in a later stage. A negative `area_delta_km2` larger than the sliver budget signals that geometry repair removed real area, which usually means an upstream CRS mistake rather than a genuine sliver. Persisting these fields to the lineage store closes the loop with [MRV data lineage and provenance tracking](https://www.spatialpipelineengineering.org/mrv-architecture-carbon-accounting-fundamentals/mrv-data-lineage-provenance-tracking/), so the integration layer's decisions remain queryable long after the run completes.
+
+<svg viewBox="0 -4 900 250" role="img" aria-labelledby="ser-t ser-d" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;color:var(--c-text)">
+  <title id="ser-t">Serial-number ranges as the unit of reconciliation between a registry and an inventory</title>
+  <desc id="ser-d">A horizontal band representing a project's issued serial-number range from 1 to 250000. Sub-ranges are marked: 1 to 90000 retired by a third party, 90001 to 140000 held by the reporting entity and claimed, 140001 to 180000 cancelled by the registry after a reversal, 180001 to 220000 held but not yet claimed, and 220001 to 250000 transferred to another account. A panel states that only the claimed sub-range may appear in the inventory, that the cancelled sub-range must be removed even if it was previously claimed, and that reconciling on project totals rather than serial ranges cannot distinguish these five states.</desc>
+  <g font-family="system-ui, sans-serif">
+    <text x="12" y="16" fill="currentColor" font-size="11.5" font-weight="700">Reconcile on serial ranges, not project totals</text>
+    <text x="12" y="34" fill="currentColor" font-size="9.5" opacity="0.72">One project's issued range, 1–250 000. Five states live inside it, and a total cannot see any of them.</text>
+  </g>
+  <g>
+    <rect x="12" y="60" width="312" height="46" fill="currentColor" opacity="0.12"/>
+    <rect x="12" y="60" width="312" height="46" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="168" y="80" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">retired by a third party</text>
+    <text x="168" y="96" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.78">1 – 90 000</text>
+    <rect x="324" y="60" width="174" height="46" fill="currentColor" opacity="0.28"/>
+    <rect x="324" y="60" width="174" height="46" fill="none" stroke="currentColor" stroke-width="2"/>
+    <text x="411" y="80" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">claimed by us</text>
+    <text x="411" y="96" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.85">90 001 – 140 000</text>
+    <rect x="498" y="60" width="139" height="46" fill="#f3a712" opacity="0.3"/>
+    <rect x="498" y="60" width="139" height="46" fill="none" stroke="#f3a712" stroke-width="2"/>
+    <text x="567" y="80" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">cancelled</text>
+    <text x="567" y="96" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.85">140 001 – 180 000</text>
+    <rect x="637" y="60" width="139" height="46" fill="currentColor" opacity="0.07"/>
+    <rect x="637" y="60" width="139" height="46" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="706" y="80" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">held, unclaimed</text>
+    <text x="706" y="96" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.78">180 001 – 220 000</text>
+    <rect x="776" y="60" width="112" height="46" fill="currentColor" opacity="0.07"/>
+    <rect x="776" y="60" width="112" height="46" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="832" y="80" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" fill="currentColor">transferred</text>
+    <text x="832" y="96" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" fill="currentColor" opacity="0.78">220 001 – 250 000</text>
+  </g>
+  <g font-family="system-ui, sans-serif">
+    <rect x="12" y="132" width="876" height="104" rx="9" fill="currentColor" opacity="0.06"/>
+    <rect x="12" y="132" width="876" height="104" rx="9" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <text x="30" y="156" fill="currentColor" font-size="10" font-weight="700">Only the claimed sub-range may appear in the inventory.</text>
+    <text x="30" y="180" fill="#f3a712" font-size="10" font-weight="700">The cancelled sub-range must be removed even if it was claimed in a prior period — that is a restatement.</text>
+    <text x="30" y="204" fill="currentColor" font-size="9.5" opacity="0.85">A project-total reconciliation sees one number, 250 000, and cannot distinguish any of these five states.</text>
+    <text x="30" y="224" fill="currentColor" font-size="9.5" opacity="0.85">Serial ranges are the only unit at which retirement, cancellation and transfer are separable.</text>
+  </g>
+</svg>
+
+## Frequently Asked Questions
+
+### How often should a registry connector re-read the full project set?
+
+At least once per reporting period, and in practice monthly for portfolios of any size. Incremental ingest is an optimisation for volume, not a substitute for reconciliation: cancellations, retirements by other parties, and status corrections all modify records the incremental query will never return. The workable arrangement is a frequent incremental pull for new issuances plus a scheduled full reconciliation that diffs the complete state against the local store and raises on every unexpected transition.
+
+### What should happen when a registry changes its export schema mid-period?
+
+The pipeline should fail, loudly, on the first record that does not match the pinned schema — and it should be able to say which field changed. Positional parsing and permissive column-name matching are what let a renamed or flattened field pass silently, dropping an entire attribute. Pin the expected schema as a versioned artefact, validate every batch against it, and treat a change as a code change requiring review rather than a runtime adaptation.
+
+### Can I trust the coordinate reference system declared in a registry export?
+
+Trust it, but verify it geometrically. A declared CRS that is wrong is more dangerous than a missing one, because a missing CRS causes a rejection while a wrong one causes a plausible-looking shift of tens to hundreds of metres. The cheap check is a plausibility test: reproject the boundary to geographic coordinates and confirm it falls within the country or region the registry record names. A boundary that lands in the sea, or in the wrong hemisphere from an axis-order swap, is caught immediately by that one assertion.
+
+### How should overlapping crediting periods be handled in a join?
+
+Never join on vintage year alone. Model the crediting period as an explicit interval with timezone-aware endpoints and perform an interval overlap rather than an equality join, allocating volume across reporting years by the rule the methodology specifies. Mixed granularity — some registries publishing a year, others a full timestamp — must be normalised at ingestion into intervals, with the coarser records widened to their full implied span and that widening recorded, so the resulting allocation is visibly an approximation rather than a false precision.
+
+### What belongs in the reconciliation record that an auditor will ask for?
+
+The registry snapshot identifier and its retrieval timestamp, the serial ranges by state, the diff against the previous snapshot with every transition classified, the geometry validity and CRS check results, and the interval allocation applied to each crediting period. Together these let a verifier reproduce the claimed volume from the registry's own published state at a point in time, which is the question the reconciliation exists to answer.
+
+### How should a project that appears in two registries be handled?
+
+As two records with an explicit link, never merged into one. Dual listing is rare but real, usually during a methodology transition or a registry migration, and merging the two loses the ability to reconcile either against its source. Keep a record per registry with its own serial ranges and status, plus a relationship field naming the counterpart, and assert that no credit volume is claimed from both. That assertion is the one control that prevents the most consequential double count available to a portfolio.
+
+### What is the right cadence for registry reconciliation in a fast-moving portfolio?
+
+Weekly for issuance and retirement, monthly for the full state diff, and immediately before any figure is published. The asymmetry reflects what changes: new issuances arrive continuously and are additive, while status corrections and cancellations arrive unpredictably and are subtractive. A publication-time reconciliation is the one that matters most, because it is the last moment a cancellation can be caught before it becomes a restatement.
+
+### Should retired credits stay in the dataset?
+
+Yes, permanently. A retirement is a state change, not a deletion, and the retired volume is exactly what an auditor checks a claim against. Removing retired rows makes the ledger unreconcilable against the registry's own published state and destroys the ability to answer who retired what and when — which is the question a double-counting investigation starts with.
 
 ## Conclusion
 
