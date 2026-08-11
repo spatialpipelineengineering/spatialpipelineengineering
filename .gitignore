@@ -23,3 +23,12 @@ Thumbs.db
 
 # Cloudflare deploy credentials
 .env
+
+# Internal build/planning tooling — not part of the published site
+_plan/
+CLAUDE.md
+BUILD_CHECKLIST.md
+site_description_and_requirements.md
+.qa-ledger.json
+.qa-ledger.json.lock
+.seo-ledger.json
